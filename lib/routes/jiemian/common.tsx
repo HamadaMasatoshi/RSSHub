@@ -19,6 +19,7 @@ export const handler = async (ctx): Promise<Data> => {
     const $ = load(response);
 
     $('.sub-col-right').remove();
+
     const container = $('#lists').length ? $('#lists') : $('body');
 
     let items = {};
@@ -43,22 +44,16 @@ export const handler = async (ctx): Promise<Data> => {
                 cache.tryGet(item.link, async () => {
                     const detailResponse = await ofetch(item.link);
                     const content = load(detailResponse);
-
-                    // --- 核心修改逻辑开始 ---
                     
-                    // 1. 仅移除 header 里的 p 标签（重复的导语）
-                    // 同时也移除了限免 banner <div>
-                    content('.article-header p, .limited-free').remove();
+                    // 移除导语 p 标签和限免标识
+                    content('.article-header p, .limited-free, p.report-view').remove();
 
-                    // 2. 提取标题：此时 h1 还在，可以正常提取
-                    item.title = content('.article-header h1').text().trim();
-                    
                     const image = content('div.article-img img').first();
                     const video = content('#video-player').first();
-                    
-                    // 3. 移除其他杂质
-                    content('p.report-view, .ad-content, .article-footer').remove();
 
+                    // 提取标题并更新
+                    item.title = content('div.article-header h1').text().trim();
+                    
                     item.description = renderDescription({
                         image: image
                             ? {
@@ -74,11 +69,9 @@ export const handler = async (ctx): Promise<Data> => {
                                   height: video.prop('height'),
                               }
                             : undefined,
-                        // 彻底移除 intro 参数，不传给渲染函数
+                        // 移除 intro 传参，只保留正文 HTML
                         description: content('div.article-content').html() || content('div.article-main').html(),
                     });
-
-                    // --- 核心修改逻辑结束 ---
 
                     item.author = content('span.author')
                         .first()
@@ -86,11 +79,9 @@ export const handler = async (ctx): Promise<Data> => {
                         .toArray()
                         .map((a) => content(a).text())
                         .join('/');
-                    
                     item.category = content('meta.meta-container a')
                         .toArray()
                         .map((c) => content(c).text());
-                    
                     item.pubDate = parseDate(content('div.article-info span[data-article-publish-time]').prop('data-article-publish-time'), 'X');
                     item.upvotes = content('span.opt-praise__count').text() ? Number.parseInt(content('span.opt-praise__count').text(), 10) : 0;
                     item.comments = content('span.opt-comment__count').text() ? Number.parseInt(content('span.opt-comment__count').text(), 10) : 0;
@@ -137,13 +128,9 @@ const renderDescription = ({
                     <img src={image.src} alt={imageAlt} />
                 </figure>
             ) : null}
-            {/* 这里不再包含 intro 的 JSX 逻辑 */}
             {video?.src ? (
-                <video poster={videoPoster} controls style={{ width: '100%' }}>
-                    <source src={video.src} type={video.type} />
-                    <object data={video.src}>
-                        <embed src={video.src} />
-                    </object>
+                <video poster={videoPoster} controls>
+                    <source src={video.src} />
                 </video>
             ) : null}
             {description ? <>{raw(description)}</> : null}
