@@ -19,6 +19,7 @@ export const handler = async (ctx): Promise<Data> => {
     const $ = load(response);
 
     $('.sub-col-right').remove();
+
     const container = $('#lists').length ? $('#lists') : $('body');
 
     let items = {};
@@ -43,14 +44,17 @@ export const handler = async (ctx): Promise<Data> => {
                 cache.tryGet(item.link, async () => {
                     const detailResponse = await ofetch(item.link);
                     const content = load(detailResponse);
+
+                    // 1. 先保存标题文字，防止被 remove 掉
+                    const articleTitle = content('div.article-header h1').text().trim() || content('title').text().split('_')[0];
                     
                     const image = content('div.article-img img').first();
                     const video = content('#video-player').first();
                     
-                    // 移除举报按钮、header部分（防止正文里再次包含重复内容）
-                    content('p.report-view, .article-header').remove();
+                    // 2. 移除干扰元素：包括举报、重复的 header (包含那个 p 标签) 和广告
+                    content('p.report-view, .article-header, .ad-content, .article-footer').remove();
 
-                    item.title = content('h1').first().text();
+                    item.title = articleTitle;
                     item.description = renderDescription({
                         image: image
                             ? {
@@ -66,8 +70,8 @@ export const handler = async (ctx): Promise<Data> => {
                                   height: video.prop('height'),
                               }
                             : undefined,
-                        // 直接删除了 intro 这一行，不再抓取和传入导语
-                        description: content('div.article-content').html(),
+                        // 这里不再传入 intro 参数
+                        description: content('div.article-content').html() || content('div.article-main').html(),
                     });
 
                     item.author = content('span.author')
@@ -127,9 +131,9 @@ const renderDescription = ({
                     <img src={image.src} alt={imageAlt} />
                 </figure>
             ) : null}
-            {/* 删除了 intro 的渲染逻辑 */}
+            {/* 删除了 intro 渲染部分，解决重复显示问题 */}
             {video?.src ? (
-                <video poster={videoPoster} controls>
+                <video poster={videoPoster} controls style={{ width: '100%' }}>
                     <source src={video.src} type={video.type} />
                     <object data={video.src}>
                         <embed src={video.src} />
