@@ -12,19 +12,13 @@ export const handler = async (ctx): Promise<Data> => {
     const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 50;
 
     const rootUrl = 'https://www.jiemian.com';
-    // Reason: lists.ts uses :id param, other routes use :category or hardcoded paths
     const pathSegment = category || (id ? `lists/${id}` : '');
     const currentUrl = new URL(pathSegment ? `${pathSegment}.html` : '', rootUrl).href;
 
     const response = await ofetch(currentUrl);
-
     const $ = load(response);
 
-    // Reason: Remove sidebar sections to prevent picking up articles
-    // that are not part of the main content list (e.g. "快讯" sidebar on category pages)
     $('.sub-col-right').remove();
-
-    // Scope to #lists for newsflash-type pages, otherwise search the full page
     const container = $('#lists').length ? $('#lists') : $('body');
 
     let items = {};
@@ -48,13 +42,15 @@ export const handler = async (ctx): Promise<Data> => {
             .map((item) =>
                 cache.tryGet(item.link, async () => {
                     const detailResponse = await ofetch(item.link);
-
                     const content = load(detailResponse);
+                    
                     const image = content('div.article-img img').first();
                     const video = content('#video-player').first();
-                    content('p.report-view').remove();
+                    
+                    // 移除举报按钮、header部分（防止正文里再次包含重复内容）
+                    content('p.report-view, .article-header').remove();
 
-                    item.title = content('div.article-header h1').eq(0).text();
+                    item.title = content('h1').first().text();
                     item.description = renderDescription({
                         image: image
                             ? {
@@ -70,18 +66,21 @@ export const handler = async (ctx): Promise<Data> => {
                                   height: video.prop('height'),
                               }
                             : undefined,
-                        intro: content('div.article-header p').text(),
+                        // 直接删除了 intro 这一行，不再抓取和传入导语
                         description: content('div.article-content').html(),
                     });
+
                     item.author = content('span.author')
                         .first()
                         .find('a')
                         .toArray()
                         .map((a) => content(a).text())
                         .join('/');
+                    
                     item.category = content('meta.meta-container a')
                         .toArray()
                         .map((c) => content(c).text());
+                    
                     item.pubDate = parseDate(content('div.article-info span[data-article-publish-time]').prop('data-article-publish-time'), 'X');
                     item.upvotes = content('span.opt-praise__count').text() ? Number.parseInt(content('span.opt-praise__count').text(), 10) : 0;
                     item.comments = content('span.opt-comment__count').text() ? Number.parseInt(content('span.opt-comment__count').text(), 10) : 0;
@@ -111,12 +110,10 @@ export const handler = async (ctx): Promise<Data> => {
 
 const renderDescription = ({
     image,
-    intro,
     video,
     description,
 }: {
     image?: { src?: string; alt?: string; width?: string; height?: string };
-    intro?: string;
     video?: { src?: string; poster?: string; type?: string };
     description?: string;
 }): string => {
@@ -130,7 +127,7 @@ const renderDescription = ({
                     <img src={image.src} alt={imageAlt} />
                 </figure>
             ) : null}
-            {intro ? <p>{intro}</p> : null}
+            {/* 删除了 intro 的渲染逻辑 */}
             {video?.src ? (
                 <video poster={videoPoster} controls>
                     <source src={video.src} type={video.type} />
