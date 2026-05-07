@@ -12,14 +12,19 @@ export const handler = async (ctx): Promise<Data> => {
     const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 50;
 
     const rootUrl = 'https://www.jiemian.com';
+    // Reason: lists.ts uses :id param, other routes use :category or hardcoded paths
     const pathSegment = category || (id ? `lists/${id}` : '');
     const currentUrl = new URL(pathSegment ? `${pathSegment}.html` : '', rootUrl).href;
 
     const response = await ofetch(currentUrl);
+
     const $ = load(response);
 
+    // Reason: Remove sidebar sections to prevent picking up articles
+    // that are not part of the main content list (e.g. "快讯" sidebar on category pages)
     $('.sub-col-right').remove();
 
+    // Scope to #lists for newsflash-type pages, otherwise search the full page
     const container = $('#lists').length ? $('#lists') : $('body');
 
     let items = {};
@@ -43,17 +48,15 @@ export const handler = async (ctx): Promise<Data> => {
             .map((item) =>
                 cache.tryGet(item.link, async () => {
                     const detailResponse = await ofetch(item.link);
-                    const content = load(detailResponse);
-                    
-                    // 移除导语 p 标签和限免标识
-                    content('.article-header p, .limited-free, p.report-view').remove();
 
+                    const content = load(detailResponse);
                     const image = content('div.article-img img').first();
                     const video = content('#video-player').first();
+                    content('p.report-view').remove();
+                    // 移除导语段落
+                    content('div.article-header p').remove();
 
-                    // 提取标题并更新
-                    item.title = content('div.article-header h1').text().trim();
-                    
+                    item.title = content('div.article-header h1').eq(0).text();
                     item.description = renderDescription({
                         image: image
                             ? {
@@ -69,10 +72,8 @@ export const handler = async (ctx): Promise<Data> => {
                                   height: video.prop('height'),
                               }
                             : undefined,
-                        // 移除 intro 传参，只保留正文 HTML
-                        description: content('div.article-content').html() || content('div.article-main').html(),
+                        description: content('div.article-content').html(),
                     });
-
                     item.author = content('span.author')
                         .first()
                         .find('a')
@@ -130,7 +131,10 @@ const renderDescription = ({
             ) : null}
             {video?.src ? (
                 <video poster={videoPoster} controls>
-                    <source src={video.src} />
+                    <source src={video.src} type={video.type} />
+                    <object data={video.src}>
+                        <embed src={video.src} />
+                    </object>
                 </video>
             ) : null}
             {description ? <>{raw(description)}</> : null}
