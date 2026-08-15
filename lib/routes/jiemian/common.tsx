@@ -34,7 +34,7 @@ export const handler = async (ctx): Promise<Data> => {
         const href = item.prop('href');
         const link = href ? (href.startsWith('/') ? new URL(href, rootUrl).href : href) : undefined;
 
-        if (link && /\/(?:article|video)\/\w+\.html/.test(link)) {
+        if (link && /\/(article|video)\/\w+\.html/.test(link)) {
             items[link] = {
                 title: item.text(),
                 link,
@@ -77,6 +77,9 @@ export const fetchArticle = (item) =>
         const image = content('div.article-img img').first();
         const video = content('#video-player').first();
         content('p.report-view').remove();
+        
+        // 你的自定义修改：明确移除导语段落
+        content('div.article-header p').remove();
 
         item.title = content('div.article-header h1').eq(0).text();
         item.description = renderDescription({
@@ -94,7 +97,6 @@ export const fetchArticle = (item) =>
                       height: video.prop('height'),
                   }
                 : undefined,
-            intro: content('div.article-header p').text(),
             description: content('div.article-content').html() ?? undefined,
         });
         item.author = content('span.author')
@@ -134,8 +136,8 @@ export const feedMeta = ($: CheerioAPI, currentUrl: string) => {
 
 export const renderDescription = ({
     image,
-    intro,
     video,
+    intro,
     description,
 }: {
     image?: { src?: string; alt?: string; width?: string; height?: string };
@@ -153,7 +155,6 @@ export const renderDescription = ({
                     <img src={image.src} alt={imageAlt} />
                 </figure>
             ) : null}
-            {intro ? <p>{intro}</p> : null}
             {video?.src ? (
                 <video poster={videoPoster} controls>
                     <source src={video.src} type={video.type} />
