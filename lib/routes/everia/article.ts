@@ -2,7 +2,7 @@ import { load } from 'cheerio';
 
 import got from '@/utils/got';
 
-async function loadArticle(link) {
+export async function loadArticle(link) {
     let fullDescription = '';
     let pageNum = 1;
     let hasNextPage = true;
