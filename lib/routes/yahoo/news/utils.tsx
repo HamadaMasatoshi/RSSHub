@@ -153,6 +153,29 @@ const parseItem = (item) =>
         const author = ldJson.author?.name;
         const body = $('.atoms').length ? $('.atoms') : $('.article-detail').length ? $('.article-detail') : $('.bodyItems-wrapper');
 
+        // 提取新版 DOM 结构中的头图与图注
+        let headerFigureHtml = '';
+        const heroFigure = $('figure[data-testid="article-figure-image"]');
+        if (heroFigure.length) {
+            const img = heroFigure.find('img');
+            let imgSrc = img.attr('src') || img.attr('data-src');
+
+            if (imgSrc) {
+                if (imgSrc.includes('https%3A%2F%2F')) {
+                    const originalUrl = decodeURIComponent(imgSrc.split('https%3A%2F%2F')[1]);
+                    imgSrc = `https://${originalUrl}`;
+                }
+
+                const caption = heroFigure.find('figcaption').text().trim();
+                headerFigureHtml = renderToString(
+                    <figure>
+                        <img src={imgSrc} />
+                        {caption && <figcaption>{caption}</figcaption>}
+                    </figure>
+                );
+            }
+        }
+
         body.find('noscript, .recommendation-contents, .text-gandalf, [id^="sda-inbody-"]').remove();
         // remove padding
         body.find('.caas-figure-with-pb, .caas-img-container').each((_, ele) => {
@@ -194,11 +217,14 @@ const parseItem = (item) =>
             }
         });
 
-        item.description = body
+        const bodyHtml = body
             .toArray()
             .map((ele) => $(ele).html())
             .join('');
-        item.author = author ?? item.author;
+
+        item.description = headerFigureHtml + bodyHtml;
+        // 关键修复：优先保留 provider 名称 (如 Bloomberg)，避免被单篇文章的具体记者姓名覆盖
+        item.author = item.author ?? author;
         item.category = ldJson.keywords;
         item.pubDate = ldJson.datePublished ? parseDate(ldJson.datePublished) : item.pubDate;
         item.updated = ldJson.dateModified ? parseDate(ldJson.dateModified) : item.updated;
