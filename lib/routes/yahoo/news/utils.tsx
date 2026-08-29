@@ -223,7 +223,8 @@ const parseItem = (item) =>
             .join('');
 
         item.description = headerFigureHtml + bodyHtml;
-        item.author = author ?? item.author;
+        // 关键修复：优先保留 provider 名称 (如 Bloomberg)，避免被单篇文章的具体记者姓名覆盖
+        item.author = item.author ?? author;
         item.category = ldJson.keywords;
         item.pubDate = ldJson.datePublished ? parseDate(ldJson.datePublished) : item.pubDate;
         item.updated = ldJson.dateModified ? parseDate(ldJson.dateModified) : item.updated;
