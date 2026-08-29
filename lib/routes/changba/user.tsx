@@ -1,7 +1,7 @@
 import { load } from 'cheerio';
 import { renderToString } from 'hono/jsx/dom/server';
 
-import type { Route } from '@/types';
+import type { DataItem, Route } from '@/types';
 import { ViewType } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
@@ -45,11 +45,11 @@ async function handler(ctx) {
     const author = $('div.user-main-info > span.txt-info > a.uname').text();
     const authorimg = $('div.user-main-info > .poster > img').attr('data-src');
 
-    let items = await Promise.all(
+    const items: Array<DataItem | null> = await Promise.all(
         list.map((item) => {
             const $ = load(item);
             const link = $('a').attr('href');
-            return cache.tryGet(link, async () => {
+            return cache.tryGet<any>(link!, async () => {
                 const result = await got({
                     method: 'get',
                     url: link,
@@ -69,14 +69,14 @@ async function handler(ctx) {
                     return null;
                 }
 
-                workid = workid.split("'")[1];
+                workid = workid.split("'", 2)[1];
 
                 if (!workid) {
                     return null;
                 }
                 const mp3 = `https://upscuw.changba.com/${workid}.mp3`;
                 const description = renderToString(<ChangbaWorkDescription desc={$('div.des').text()} mp3url={mp3} />);
-                const itunes_item_image = $('div.work-cover').attr('style').replace(')', '').split('url(')[1];
+                const itunes_item_image = $('div.work-cover').attr('style')!.replace(')', '').split('url(', 2)[1];
                 return {
                     title: $('.work-title').text(),
                     description,
@@ -90,13 +90,11 @@ async function handler(ctx) {
         })
     );
 
-    items = items.filter(Boolean);
-
     return {
         title: author + ' - 唱吧',
         link: url,
         description: $('meta[name="description"]').attr('content') || author + ' - 唱吧',
-        item: items,
+        item: items.filter((item) => item !== null),
         image: authorimg,
         itunes_author: author,
         itunes_category: '唱吧',

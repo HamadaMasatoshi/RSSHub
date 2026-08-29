@@ -96,7 +96,7 @@ const getProviderList = async (region) => {
 };
 
 const findStoresObject = (node) => {
-    if (!node || typeof node !== 'object') {
+    if (!(node instanceof Object)) {
         return null;
     }
     if ('breakingNews' in node) {
@@ -146,11 +146,10 @@ const parseItem = (item) =>
         });
         const $ = load(response);
 
-        const ldJson = JSON.parse(
-            $('script[type="application/ld+json"]')
-                .toArray()
-                .find((ele) => $(ele).text().includes('"@type":"NewsArticle"'))?.children[0].data || '{}'
-        );
+        const ldJsonEle = $('script[type="application/ld+json"]')
+            .toArray()
+            .find((ele) => $(ele).text().includes('"@type":"NewsArticle"'));
+        const ldJson = JSON.parse((ldJsonEle && $(ldJsonEle).text()) || '{}');
         const author = ldJson.author?.name;
         const body = $('.atoms').length ? $('.atoms') : $('.article-detail').length ? $('.article-detail') : $('.bodyItems-wrapper');
 
@@ -163,7 +162,7 @@ const parseItem = (item) =>
 
         body.find('img').each((_, ele) => {
             const $ele = $(ele);
-            let dataSrc = $ele.data('src') as string;
+            let dataSrc = $ele.attr('data-src');
 
             if (dataSrc) {
                 const match = dataSrc.match(/.*--\/.*--\/(.*)/);
@@ -178,13 +177,13 @@ const parseItem = (item) =>
         body.find('.caas-iframe').each((_, ele) => {
             const $ele = $(ele);
             if ($ele.data('type') === 'youtube') {
-                const blockquoteSrc = $ele.find('blockquote').data('src') as string;
+                const blockquoteSrc = $ele.find('blockquote').attr('data-src')!;
                 $ele.replaceWith(
                     renderToString(
                         <iframe
                             width="560"
                             height="315"
-                            src={`https://www.youtube-nocookie.com/embed/${blockquoteSrc.split('/').pop()?.split('?')?.[0]}`}
+                            src={`https://www.youtube-nocookie.com/embed/${blockquoteSrc.split('/').pop()?.split('?', 1)?.[0]}`}
                             frameborder="0"
                             allow="encrypted-media; picture-in-picture; web-share"
                             allowfullscreen

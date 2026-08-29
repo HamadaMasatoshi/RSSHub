@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 
-import type { Data, DataItem, Route } from '@/types';
+import type { Data, DataItem, Language, Route } from '@/types';
 import { ViewType } from '@/types';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
@@ -15,39 +15,49 @@ interface LocaleConfig {
     title: string;
 }
 
-// Reason: each locale maps to a different country filter, API language code, and site URL
-const localeMap: Record<string, LocaleConfig> = {
-    zh: {
-        apiLang: 'zh-CN',
-        countries: ['China Mainland'],
-        insightsUrl: 'https://www.joneslanglasalle.com.cn/zh-cn/insights',
-        title: '洞察 - 仲量联行JLL',
-    },
-    en: {
-        apiLang: 'en-GB',
-        countries: ['China Mainland'],
-        insightsUrl: 'https://www.joneslanglasalle.com.cn/en-cn/insights',
-        title: 'Insights - JLL China',
-    },
-    'zh-hk': {
-        apiLang: 'zh-HK',
-        countries: ['Hong Kong'],
-        insightsUrl: 'https://www.jll.com/zh-hk/insights',
-        title: '洞察 - 仲量聯行JLL 香港',
-    },
-    'en-hk': {
-        apiLang: 'en-GB',
-        countries: ['Hong Kong'],
-        insightsUrl: 'https://www.jll.com/en-hk/insights',
-        title: 'Insights - JLL Hong Kong',
-    },
+const defaultLocale: LocaleConfig = {
+    apiLang: 'zh-CN',
+    countries: ['China Mainland'],
+    insightsUrl: 'https://www.joneslanglasalle.com.cn/zh-cn/insights',
+    title: '洞察 - 仲量联行JLL',
 };
+
+const localeMap = new Map<string, LocaleConfig>([
+    ['zh', defaultLocale],
+    [
+        'en',
+        {
+            apiLang: 'en-GB',
+            countries: ['China Mainland'],
+            insightsUrl: 'https://www.joneslanglasalle.com.cn/en-cn/insights',
+            title: 'Insights - JLL China',
+        },
+    ],
+    [
+        'zh-hk',
+        {
+            apiLang: 'zh-HK',
+            countries: ['Hong Kong'],
+            insightsUrl: 'https://www.jll.com/zh-hk/insights',
+            title: '洞察 - 仲量聯行JLL 香港',
+        },
+    ],
+    [
+        'en-hk',
+        {
+            apiLang: 'en-GB',
+            countries: ['Hong Kong'],
+            insightsUrl: 'https://www.jll.com/en-hk/insights',
+            title: 'Insights - JLL Hong Kong',
+        },
+    ],
+]);
 
 export const handler = async (ctx: Context): Promise<Data> => {
     const { language: lang = 'zh' } = ctx.req.param();
-    const limit: number = Number.parseInt(ctx.req.query('limit') ?? '12', 10);
+    const limit = Number(ctx.req.query('limit') ?? '12');
 
-    const locale = localeMap[lang] || localeMap.zh;
+    const locale = localeMap.get(lang) || defaultLocale;
 
     // Reason: site rebuilt with search API; old HTML scraping no longer works.
     // Using the public search API (Elasticsearch-backed) with subscription key from page JS.
@@ -71,11 +81,11 @@ export const handler = async (ctx: Context): Promise<Data> => {
         },
     });
 
-    const items: DataItem[] = (response.hits?.hits || []).map((hit) => {
+    const items: DataItem[] = response.hits.hits.map((hit) => {
         const source = hit._source;
         return {
             title: source.title,
-            description: source.description || source.subTitle || '',
+            description: source.description || source.subTitle,
             link: source.pageUrl,
             pubDate: source.datePublished ? parseDate(source.datePublished) : undefined,
             category: [...(source.topics || []), ...(source.industries || [])],
@@ -90,7 +100,7 @@ export const handler = async (ctx: Context): Promise<Data> => {
         link: locale.insightsUrl,
         item: items,
         allowEmpty: true,
-        language: locale.apiLang,
+        language: locale.apiLang as Language,
     };
 };
 
@@ -114,8 +124,7 @@ If you subscribe to [Trends & Insights (China)](https://www.joneslanglasalle.com
 | China Mainland | 中文     | zh        |
 | China Mainland | English  | en        |
 | Hong Kong      | 中文     | zh-hk     |
-| Hong Kong      | English  | en-hk     |
-`,
+| Hong Kong      | English  | en-hk     |`,
     categories: ['new-media'],
     features: {
         requireConfig: false,
@@ -172,12 +181,11 @@ If you subscribe to [Trends & Insights (China)](https://www.joneslanglasalle.com
 若订阅 [中国大陆洞察](https://www.joneslanglasalle.com.cn/zh-cn/insights)，语言参数为 \`zh\`。若订阅 [香港洞察](https://www.jll.com/zh-hk/insights)，语言参数为 \`zh-hk\`。
 :::
 
-| 地区   | 语言    | 参数  |
-| ------ | ------- | ----- |
-| 中国大陆 | 中文  | zh    |
+| 地区     | 语言    | 参数  |
+| -------- | ------- | ----- |
+| 中国大陆 | 中文    | zh    |
 | 中国大陆 | English | en    |
-| 香港   | 中文    | zh-hk |
-| 香港   | English | en-hk |
-`,
+| 香港     | 中文    | zh-hk |
+| 香港     | English | en-hk |`,
     },
 };

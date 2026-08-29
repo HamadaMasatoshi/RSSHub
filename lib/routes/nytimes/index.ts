@@ -1,6 +1,6 @@
 import { load } from 'cheerio';
 
-import type { Route } from '@/types';
+import type { DataItem, Route } from '@/types';
 import { ViewType } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
@@ -81,7 +81,7 @@ async function handler(ctx) {
         // Do nothing
     }
 
-    const browser = await playwright();
+    const context = await playwright();
     const feed = await parser.parseURL(rssUrl);
     const items = await Promise.all(
         feed.items.splice(0, 10).map(async (item) => {
@@ -92,7 +92,7 @@ async function handler(ctx) {
                 dual = false;
 
             if (lang === 'dual') {
-                link = link.replace('/?utm_source=RSS', '') + '/dual';
+                link = link!.replace('/?utm_source=RSS', '') + '/dual';
 
                 try {
                     response = await cache.tryGet(`nyt: ${link}`, async () => {
@@ -120,15 +120,15 @@ async function handler(ctx) {
                     const $ = load(response);
                     if ($('.dual-btn').length > 0) {
                         hasEnVersion = true;
-                        link = $('.dual-btn a').last().attr().href;
+                        link = $('.dual-btn a').last().attr()!.href;
 
-                        response = await utils.PuppeterGetter(ctx, browser, link);
+                        response = await utils.PuppeterGetter(ctx, context, link);
                     }
                 }
             }
 
-            const single = {
-                title: item.title,
+            const single: DataItem = {
+                title: item.title!,
                 pubDate: item.pubDate,
                 link,
                 author: item['dc:creator'],
@@ -154,7 +154,7 @@ async function handler(ctx) {
         })
     );
 
-    await browser.close();
+    await context.close();
 
     return {
         title,

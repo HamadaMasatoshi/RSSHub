@@ -1,9 +1,9 @@
 /* eslint-disable no-await-in-loop */
 import type { Context } from 'hono';
-import { Api } from 'telegram';
-import { HTMLParser } from 'telegram/extensions/html.js';
-import { returnBigInt } from 'telegram/Helpers.js';
-import { getDisplayName } from 'telegram/Utils.js';
+import { Api } from 'teleproto';
+import { HTMLParser } from 'teleproto/extensions/html.js';
+import { returnBigInt } from 'teleproto/Helpers.js';
+import { getDisplayName } from 'teleproto/Utils.js';
 
 import type { DataItem } from '@/types';
 import cache from '@/utils/cache';
@@ -18,14 +18,15 @@ export async function getPollResults(client, message, m: Api.MessageMediaPoll) {
     const resultsUpdateResponse = await client.invoke(new Api.messages.GetPollResults({ peer: message.peerId, msgId: message.id }));
     let results: Api.PollResults;
     if (resultsUpdateResponse?.updates[0] instanceof Api.UpdateMessagePoll) {
-        results = resultsUpdateResponse.updates[0].results as Api.PollResults;
+        results = resultsUpdateResponse.updates[0].results;
     }
     const txt = `<h4>${m.poll.quiz ? 'Quiz' : 'Poll'}: ${m.poll.question.text}</h4>
         <div><ul>${m.poll.answers
+            .filter((a) => a instanceof Api.PollAnswer)
             .map((a) => {
                 let answerTxt = a.text.text;
                 const result = results.results?.find((r) => r.option.buffer === a.option.buffer);
-                if (result && results.totalVoters) {
+                if (result?.voters !== undefined && results.totalVoters) {
                     answerTxt = `<strong>${Math.round((result.voters / results.totalVoters) * 100)}%</strong>: ${answerTxt}`;
                 }
                 return `<li>${answerTxt}</li>`;
@@ -40,7 +41,7 @@ export function withSearchParams(src: string, params: Record<string, string>) {
     for (const [key, value] of Object.entries(params)) {
         url.searchParams.set(key, value);
     }
-    return url.toString();
+    return url.href;
 }
 
 export function getMessageMediaUrl(requestUrl: string, username: string, messageId: number) {
@@ -52,7 +53,7 @@ export function getMessageMediaUrl(requestUrl: string, username: string, message
             url.searchParams.set(key, value);
         }
     }
-    return url.toString();
+    return url.href;
 }
 
 export function getMediaLink(src: string, m: Api.TypeMessageMedia) {
@@ -63,7 +64,7 @@ export function getMediaLink(src: string, m: Api.TypeMessageMedia) {
         return `<img src="${src}" alt=""/>`;
     }
     if (doc && mime.startsWith('video/')) {
-        const vid = (doc.attributes.find((t) => t instanceof Api.DocumentAttributeVideo) ?? { w: 1080, h: 720 }) as { w: number; h: number };
+        const vid = doc.attributes.find((t) => t instanceof Api.DocumentAttributeVideo) ?? { w: 1080, h: 720 };
         return `<video controls preload="metadata" poster="${withSearchParams(src, { thumb: '' })}" width="${vid.w / 2}" height="${vid.h / 2}"><source src="${src}" type="${mime}"></video>`;
     }
     if (doc && mime.startsWith('audio/')) {
@@ -128,11 +129,11 @@ export function humanDuration(seconds: number) {
     // Construct the time string conditionally
     if (hours > 0) {
         return `${hours}:${paddedMinutes}:${paddedSeconds}`; // Show hours, minutes, and seconds
-    } else if (minutes > 0) {
-        return `${minutes}:${paddedSeconds}`; // Show minutes and seconds
-    } else {
-        return `0:${paddedSeconds}`; // Show only seconds
     }
+    if (minutes > 0) {
+        return `${minutes}:${paddedSeconds}`; // Show minutes and seconds
+    }
+    return `0:${paddedSeconds}`; // Show only seconds
 }
 
 export default async function handler(ctx: Context) {
@@ -141,7 +142,7 @@ export default async function handler(ctx: Context) {
 
     let peerCache = await cache.get(`telegram:inputEntity:${username}`);
     if (!peerCache) {
-        const p = await client.getInputEntity(username);
+        const p = await client.getInputEntity(username!);
         peerCache = JSON.stringify(p.toJSON());
         await cache.set(`telegram:inputEntity:${username}`, peerCache);
     }
@@ -175,7 +176,7 @@ export default async function handler(ctx: Context) {
             }
             // messages that have no text are shown as if they're one post
             // because in TG only 1 attachment per message is possible
-            const src = getMessageMediaUrl(ctx.req.url, username, message.id);
+            const src = getMessageMediaUrl(ctx.req.url, username!, message.id);
             attachments.push(getMediaLink(src, media));
         }
         if (message.replyMarkup instanceof Api.ReplyInlineMarkup) {
@@ -208,7 +209,6 @@ export default async function handler(ctx: Context) {
 
     return {
         title: getDisplayName(entity),
-        language: null,
         link: `https://t.me/${username}`,
         item,
         allowEmpty: ctx.req.param('id') === 'allow_empty',

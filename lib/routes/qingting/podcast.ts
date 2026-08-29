@@ -74,28 +74,24 @@ async function handler(ctx) {
 
     const resultItems = await Promise.all(
         programs.map(async (item) => {
-            const data = (await cache.tryGet(`qingting:podcast:${channelId}:${item.id}`, async () => {
+            const data = await cache.tryGet(`qingting:podcast:${channelId}:${item.id}`, async (): Promise<DataItem> => {
                 const link = `https://www.qingting.fm/channels/${channelId}/programs/${item.id}/`;
 
-                const detailRes = await ofetch(link, {
-                    headers: {
-                        Referer: 'https://www.qingting.fm/',
-                    },
-                });
+                const detailRes = await ofetch(link);
 
-                const detail = JSON.parse(detailRes.match(/},"program":(.*?),"plist":/)[1]);
+                const detail = JSON.parse(detailRes.match(/\},"program":(.*?),"plist":/)[1]);
 
                 const rssItem = {
                     title: item.title,
                     link,
                     itunes_item_image: item.cover,
                     itunes_duration: item.duration,
-                    pubDate: timezone(parseDate(item.update_time), +8),
+                    pubDate: timezone(parseDate(item.update_time), 8),
                     description: detail.richtext,
                 };
 
                 return rssItem;
-            })) as DataItem;
+            });
 
             if (!isCharged || isPaid || item.isfree) {
                 data.enclosure_url = getMediaUrl(channelId, item.id);

@@ -2,7 +2,7 @@ import { load } from 'cheerio';
 import { raw } from 'hono/html';
 import { renderToString } from 'hono/jsx/dom/server';
 
-import type { Route } from '@/types';
+import type { DataItem, Route } from '@/types';
 import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
@@ -29,12 +29,8 @@ async function handler() {
 
     const items = await Promise.all(
         feed.items.map((item) =>
-            cache.tryGet(item.link, async () => {
-                const response = await ofetch(item.link, {
-                    headers: {
-                        Referer: baseUrl,
-                    },
-                });
+            cache.tryGet(item.link!, async () => {
+                const response = await ofetch(item.link!);
                 const $ = load(response);
 
                 item.title = ($('meta[property="og:title"]').attr('content') ?? $('.news-title h1').text()).replace(' - 香港手機遊戲網 GameApps.hk', '');
@@ -57,22 +53,21 @@ async function handler() {
                         {desc ? raw(desc) : null}
                     </>
                 );
-                item.guid = item.guid.slice(0, item.link.lastIndexOf('/'));
-                item.pubDate = parseDate(item.pubDate);
+                item.guid = item.guid!.slice(0, item.link!.lastIndexOf('/'));
                 item.enclosure_url = $('div.introduction.media.news-intro div.media-left').find('img').attr('src');
                 item.enclosure_type = 'image/jpeg';
 
-                return item;
+                return { ...item, pubDate: parseDate(item.pubDate!) };
             })
         )
     );
 
     return {
-        title: feed.title,
+        title: feed.title!,
         link: feed.link,
         description: feed.description,
         image: `${baseUrl}/static/favicon/apple-touch-icon.png`,
-        item: items,
+        item: items as DataItem[],
         language: feed.language,
     };
 }

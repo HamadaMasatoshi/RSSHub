@@ -84,13 +84,13 @@ async function handler(ctx) {
                 },
             });
         } catch (error) {
-            if (error.status === 403) {
+            if ((error as { status?: number }).status === 403) {
                 const { page, destroy } = await getPlaywrightPage(profileUrl, {
                     onBeforeLoad: async (page) => {
                         const expectResourceTypes = new Set(['document', 'script', 'xhr', 'fetch']);
-                        await page.setRequestInterception(true);
-                        page.on('request', (request) => {
-                            expectResourceTypes.has(request.resourceType()) ? request.continue() : request.abort();
+                        await page.route('**/*', (route) => {
+                            const request = route.request();
+                            expectResourceTypes.has(request.resourceType()) ? route.continue() : route.abort();
                         });
                     },
                 });
@@ -98,7 +98,7 @@ async function handler(ctx) {
                 response = await page.content();
                 await destroy();
             } else {
-                throw new NotFoundError(error.message);
+                throw new NotFoundError((error as Error).message);
             }
         }
 

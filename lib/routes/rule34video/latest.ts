@@ -46,9 +46,6 @@ async function handler() {
     const response = await got({
         method: 'get',
         url: 'https://www.rule34video.com/latest-updates/',
-        headers: {
-            Referer: 'https://www.rule34video.com',
-        },
     });
 
     const $ = load(response.data);
@@ -78,7 +75,7 @@ async function handler() {
                 hasSound,
                 isHD,
                 videoId,
-            } as VideoItem;
+            } satisfies VideoItem;
         })
         .filter((item) => item.title && item.link);
 

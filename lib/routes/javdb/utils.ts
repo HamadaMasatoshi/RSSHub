@@ -2,6 +2,7 @@ import { load } from 'cheerio';
 
 import { config } from '@/config';
 import ConfigNotFoundError from '@/errors/types/config-not-found';
+import type { DataItem } from '@/types';
 import cache from '@/utils/cache';
 import logger from '@/utils/logger';
 import { parseDate } from '@/utils/parse-date';
@@ -18,21 +19,23 @@ const ProcessItems = async (ctx, currentUrl, title) => {
 
     const rootUrl = `https://${domain}`;
 
-    const { page, destroy, browser } = await getPlaywrightPage('about:blank');
-    if (config.javdb.session) {
-        await browser.setCookie({
-            name: '_jdb_session',
-            value: config.javdb.session,
-            domain,
-            path: '/',
-        });
-    }
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-        request.resourceType() === 'document' ? request.continue() : request.abort();
-    });
-    await page.goto(url.href, {
-        waitUntil: 'domcontentloaded',
+    const { page, destroy, context } = await getPlaywrightPage(url.href, {
+        onBeforeLoad: async (page) => {
+            if (config.javdb.session) {
+                await page.context().addCookies([
+                    {
+                        name: '_jdb_session',
+                        value: config.javdb.session,
+                        domain,
+                        path: '/',
+                    },
+                ]);
+            }
+            await page.route('**/*', (route) => {
+                const request = route.request();
+                request.resourceType() === 'document' ? route.continue() : route.abort();
+            });
+        },
     });
     const response = await page.content();
     await page.close();
@@ -44,7 +47,7 @@ const ProcessItems = async (ctx, currentUrl, title) => {
     let items = $('div.item')
         .slice(0, ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit')) : 20)
         .toArray()
-        .map((item) => {
+        .map((item): DataItem => {
             const element = $(item);
             return {
                 title: element.find('.video-title').text(),
@@ -55,14 +58,14 @@ const ProcessItems = async (ctx, currentUrl, title) => {
 
     items = await Promise.all(
         items.map((item) =>
-            cache.tryGet(item.link, async () => {
-                const page = await browser.newPage();
-                await page.setRequestInterception(true);
-                page.on('request', (request) => {
-                    request.resourceType() === 'document' ? request.continue() : request.abort();
+            cache.tryGet(item.link!, async () => {
+                const page = await context.newPage();
+                await page.route('**/*', (route) => {
+                    const request = route.request();
+                    request.resourceType() === 'document' ? route.continue() : route.abort();
                 });
                 logger.http(`Requesting ${item.link}`);
-                await page.goto(item.link, {
+                await page.goto(item.link!, {
                     waitUntil: 'domcontentloaded',
                 });
                 const detailResponse = await page.content();
@@ -76,16 +79,16 @@ const ProcessItems = async (ctx, currentUrl, title) => {
                 content('#modal-review-watched, #modal-comment-warning, #modal-save-list').remove();
                 content('.review-buttons, .copy-to-clipboard, .preview-video-container, .play-button').remove();
 
-                content('.preview-images img').each(function () {
-                    content(this).removeAttr('data-src');
-                    content(this).attr('src', content(this).parent().attr('href'));
+                content('.preview-images img').each((_, el) => {
+                    content(el).removeAttr('data-src');
+                    content(el).attr('src', content(el).parent().attr('href'));
                 });
 
                 item.category = content('.panel-block .value a')
                     .toArray()
                     .map((v) => content(v).text());
                 item.author = content('.panel-block .value').last().parent().find('.value a').first().text();
-                item.description = content('.cover-container, .column-video-cover').html() + content('.movie-panel-info').html() + content('#magnets-content').html() + content('.preview-images').html();
+                item.description = content('.cover-container, .column-video-cover').html()! + content('.movie-panel-info').html()! + content('#magnets-content').html() + content('.preview-images').html();
 
                 await page.close();
 
@@ -95,7 +98,7 @@ const ProcessItems = async (ctx, currentUrl, title) => {
     );
 
     const htmlTitle = $('title').text();
-    const subject = htmlTitle.includes('|') ? htmlTitle.split('|')[0] : '';
+    const subject = htmlTitle.includes('|') ? htmlTitle.split('|', 1)[0] : '';
 
     await destroy();
 

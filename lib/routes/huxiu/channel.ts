@@ -1,5 +1,4 @@
 import type { Route } from '@/types';
-import cache from '@/utils/cache';
 import got from '@/utils/got';
 
 import { apiArticleRootUrl, buildFeedMetadata, buildHuxiuRouteTitlePrefix, processItems, rootUrl } from './util';
@@ -26,22 +25,22 @@ export const route: Route = {
     maintainers: ['HenryQW', 'nczitzk', 'TimoYoung'],
     handler,
     description: `| 视频 | 前沿科技 | 车与出行 | 商业消费 | 社会文化 |
-| ---- | -------- | -------- | ---------- | -------- |
-| 10   | 105    | 21    | 103        | 106     |
+| ---- | -------- | -------- | -------- | -------- |
+| 10   | 105      | 21       | 103      | 106      |
 
 | 金融财经 | 出海 | 国际热点 | 游戏娱乐 | 健康 |
 | -------- | ---- | -------- | -------- | ---- |
 | 115      | 114  | 107      | 22       | 118  |
 
-| 书影音 | 医疗 | 3C数码 | 观点 | 其他 |
-| ------ | ---- | ------ | ---- | ---- |
-| 119    | 120  | 121    | 122  | 123  |`,
+| 书影音 | 医疗 | 3C 数码 | 观点 | 其他 |
+| ------ | ---- | ------- | ---- | ---- |
+| 119    | 120  | 121     | 122  | 123  |`,
     url: 'huxiu.com/article',
 };
 
 async function handler(ctx) {
     const id = ctx.req.param('id');
-    const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 20;
+    const limit = ctx.req.query('limit') ? Number(ctx.req.query('limit')) : 20;
 
     const apiUrl = new URL('web/channel/articleListV1', apiArticleRootUrl).href;
     const currentUrl = new URL(id ? `channel/${id}.html` : 'article', rootUrl).href;
@@ -54,7 +53,7 @@ async function handler(ctx) {
         },
     });
 
-    const items = await processItems(response.data?.dataList ?? response.data.datalist, limit, cache.tryGet);
+    const items = await processItems(response.data?.dataList ?? response.data.datalist, limit);
     const rawTitle = response.data?.share_info?.share_title ?? response.data?.name ?? '全部';
 
     const data = buildFeedMetadata({

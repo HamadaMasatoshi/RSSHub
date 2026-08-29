@@ -26,21 +26,24 @@ export const route: Route = {
 async function handler() {
     const last = new Date().getFullYear() + 1;
     const urlList = Array.from({ length: last - 2020 }, (_, v) => `${url}TC/SP${v + 2020}/program-papers.html`);
-    const responses = await Promise.allSettled(urlList.map((url) => ofetch(url)));
+    const responses = await Promise.allSettled(urlList.map((url) => ofetch<string>(url)));
 
     const items = responses.flatMap((response, i) => {
+        if (response.status !== 'fulfilled') {
+            return [];
+        }
         const $ = load(response.value);
         return $('div.panel-body > div.list-group-item')
             .toArray()
             .map((item) => {
-                item = $(item);
-                const title = item.find('b').text().trim();
+                const $item = $(item);
+                const title = $item.find('b').text().trim();
                 const link = urlList[i];
                 return {
                     title,
-                    author: item.html().trim().split('<br>')[1].trim(),
+                    author: $item.html()!.trim().split('<br>', 2)[1].trim(),
                     link: `${link}#${title}`,
-                    pubDate: parseDate(link.match(/SP(\d{4})/)[1], 'YYYY'),
+                    pubDate: parseDate(link.match(/SP(\d{4})/)![1], 'YYYY'),
                 };
             });
     });

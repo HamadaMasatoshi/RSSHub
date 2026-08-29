@@ -18,29 +18,16 @@ type BadgeItem = DataItem & {
     title: string;
 };
 
-function absolutizeImageSource($: CheerioAPI, itemUrl: string) {
-    $('article')
-        .first()
-        .find('[src]')
-        .each((_, element) => {
-            const value = $(element).attr('src');
-
-            if (value) {
-                $(element).attr('src', new URL(value, itemUrl).href);
-            }
-        });
-}
-
 function extractBadgeDescription($: CheerioAPI) {
-    const article = $('article').first();
+    const article = $('article');
 
     if (!article.length) {
         return;
     }
 
-    article.find('h1, script, style, noscript').remove();
+    article.find('h1, style, noscript').remove();
 
-    return article.html() ?? undefined;
+    return article.html();
 }
 
 function extractListItems($: CheerioAPI, limit: number): BadgeItem[] {
@@ -50,7 +37,7 @@ function extractListItems($: CheerioAPI, limit: number): BadgeItem[] {
         .map((element) => {
             const badge = $(element);
             const href = badge.attr('href');
-            const title = badge.find('.title').text().trim();
+            const title = badge.find('.title').text();
 
             if (!href || !title) {
                 return null;
@@ -66,7 +53,7 @@ function extractListItems($: CheerioAPI, limit: number): BadgeItem[] {
                 image: image ? new URL(image, rootUrl).href : undefined,
             };
         })
-        .filter(Boolean) as BadgeItem[];
+        .filter((item) => item !== null);
 }
 
 function fetchBadge(item: BadgeItem) {
@@ -74,10 +61,9 @@ function fetchBadge(item: BadgeItem) {
         const { data: response } = await got(item.link);
         const $: CheerioAPI = load(response);
 
-        const title = $('article h1').first().text().trim();
+        const title = $('article h1').text();
         const visibleStart = $('ul.metadata li').first().find('time.date').first().attr('datetime');
         const image = $('meta[property="og:image"]').attr('content');
-        absolutizeImageSource($, item.link);
 
         return {
             ...item,
@@ -91,7 +77,7 @@ function fetchBadge(item: BadgeItem) {
 }
 
 const handler: Route['handler'] = async (ctx) => {
-    const limit = Math.max(Number.parseInt(ctx.req.query('limit') ?? '', 10) || defaultLimit, 1);
+    const limit = Number(ctx.req.query('limit')) || defaultLimit;
 
     const { data: response } = await got(currentUrl);
     const $: CheerioAPI = load(response);

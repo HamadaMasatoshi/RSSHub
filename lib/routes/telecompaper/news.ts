@@ -1,7 +1,7 @@
 import { load } from 'cheerio';
 import { CookieJar } from 'tough-cookie';
 
-import type { Route } from '@/types';
+import type { DataItem, Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 
@@ -33,9 +33,9 @@ export const route: Route = {
 | mobile   | internet  | boardcast | general | it | industry-resources |
 
 ::: tip
-  If \`country\` or \`type\` includes empty space, use \`-\` instead. For example, \`United States\` needs to be replaced with \`United-States\`, \`White paper\` needs to be replaced with \`White-paper\`
+If \`country\` or \`type\` includes empty space, use \`-\` instead. For example, \`United States\` needs to be replaced with \`United-States\`, \`White paper\` needs to be replaced with \`White-paper\`
 
-  Filters in [INDUSTRY RESOURCES](https://www.telecompaper.com/industry-resources) only provides \`Content Type\` which corresponds to \`type\`. \`year\` and \`country\` are not supported.
+Filters in [INDUSTRY RESOURCES](https://www.telecompaper.com/industry-resources) only provides \`Content Type\` which corresponds to \`type\`. \`year\` and \`country\` are not supported.
 :::`,
 };
 
@@ -66,7 +66,7 @@ async function handler(ctx) {
             'ctl00$MainPlaceHolder$ddlYears',
             year && year !== 'all'
                 ? ($('select[name="ctl00$MainPlaceHolder$ddlYears"] option')
-                      .filter((index, element) => $(element).text().split(' (')[0] === ctx.req.param('year'))
+                      .filter((index, element) => $(element).text().split(' (', 1)[0] === ctx.req.param('year'))
                       .attr('value') ?? '0')
                 : '0'
         );
@@ -74,7 +74,7 @@ async function handler(ctx) {
             'ctl00$MainPlaceHolder$ddlCountries',
             country && country !== 'all'
                 ? ($('select[name="ctl00$MainPlaceHolder$ddlCountries"] option')
-                      .filter((index, element) => $(element).text().split(' (')[0] === country)
+                      .filter((index, element) => $(element).text().split(' (', 1)[0] === country)
                       .attr('value') ?? '0')
                 : '0'
         );
@@ -83,7 +83,7 @@ async function handler(ctx) {
         'ctl00$MainPlaceHolder$ddlContentType',
         type && type !== 'all'
             ? ($('select[name="ctl00$MainPlaceHolder$ddlContentType"] option')
-                  .filter((index, element) => $(element).text().split(' (')[0] === type)
+                  .filter((index, element) => $(element).text().split(' (', 1)[0] === type)
                   .attr('value') ?? '')
             : ''
     );
@@ -102,19 +102,19 @@ async function handler(ctx) {
     const list = $('table.details_rows tbody tr')
         .slice(0, 10)
         .toArray()
-        .map((item) => {
-            item = $(item);
-            const a = item.find('a');
+        .map((item): DataItem => {
+            const $item = $(item);
+            const a = $item.find('a');
             return {
                 title: a.text(),
                 link: a.attr('href'),
-                pubDate: new Date(item.find('span.source').text().replace('Published ', '').split(' CET | ')[0] + ' GMT+1').toUTCString(),
+                pubDate: new Date($item.find('span.source').text().replace('Published ', '').split(' CET | ', 1)[0] + ' GMT+1').toUTCString(),
             };
         });
 
     const items = await Promise.all(
         list.map((item) =>
-            cache.tryGet(item.link, async () => {
+            cache.tryGet(item.link!, async () => {
                 const detailResponse = await got({
                     method: 'get',
                     url: item.link,

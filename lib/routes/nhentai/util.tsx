@@ -26,7 +26,7 @@ const getCookie = async (username, password, cache) => {
 
     const { data, headers } = await got(loginUrl);
     const csrfTokenMiddleware = data.match(/name="csrfmiddlewaretoken" value="(.*?)"/)[1];
-    const csrfTokenCookie = headers['set-cookie'].map((c) => c.split(';')[0]).join('; ');
+    const csrfTokenCookie = headers['set-cookie'].map((c) => c.split(';', 1)[0]).join('; ');
 
     const login = await got.post(loginUrl, {
         headers: {
@@ -53,7 +53,7 @@ const getCookie = async (username, password, cache) => {
         return '';
     }
 
-    const userTokenCookie = login.headers['set-cookie'].map((c) => c.split(';')[0]).join('; ');
+    const userTokenCookie = login.headers['set-cookie'].map((c) => c.split(';', 1)[0]).join('; ');
 
     cache.set(
         cacheKey,
@@ -71,14 +71,14 @@ const fetchPage = async (url: string): Promise<string> => {
     try {
         return await ofetch(url);
     } catch (error: unknown) {
-        const status = (error as { status?: number; statusCode?: number }).status ?? (error as { status?: number; statusCode?: number }).statusCode;
-        if (status === 403) {
+        const { status, statusCode } = error as { status?: number; statusCode?: number };
+        if ((status ?? statusCode) === 403) {
             const { page, destroy } = await getPlaywrightPage(url, {
                 onBeforeLoad: async (page) => {
                     const allowedTypes = new Set(['document', 'script', 'xhr', 'fetch']);
-                    await page.setRequestInterception(true);
-                    page.on('request', (request) => {
-                        allowedTypes.has(request.resourceType()) ? request.continue() : request.abort();
+                    await page.route('**/*', (route) => {
+                        const request = route.request();
+                        allowedTypes.has(request.resourceType()) ? route.continue() : route.abort();
                     });
                 },
             });
@@ -147,8 +147,8 @@ const getDetail = async (simple) => {
 
     const galleryImgs = $('.gallerythumb img')
         .toArray()
-        .map((ele) => new URL($(ele).attr('data-src'), baseUrl).href)
-        .map((src) => src.replace(/(.+)(\d+)t\.(.+)/, (_, p1, p2, p3) => `${p1}${p2}.${p3}`)) // thumb to high-quality
+        .map((ele) => new URL($(ele).attr('data-src')!, baseUrl).href)
+        .map((src) => src.replace(/(.+)(\d)t\.(.+)/, (_, p1, p2, p3) => `${p1}${p2}.${p3}`)) // thumb to high-quality
         .map((src) => src.replace(/t(\d+)\.nhentai\.net/, 'i$1.nhentai.net'))
         .map((src) => src.replace(/\.(jpg|png|gif)\.webp$/, '.$1')) // 移除重複的.webp後綴
         .map((src) => src.replace(/\.webp\.webp$/, '.webp')); // 處理.webp.webp的情況
@@ -156,7 +156,7 @@ const getDetail = async (simple) => {
     return {
         ...simple,
         title: $('div#info > h2').text() || $('div#info > h1').text(),
-        pubDate: parseDate($('time').attr('datetime')),
+        pubDate: parseDate($('time').attr('datetime')!),
         description: renderDescription(galleryImgs.length, galleryImgs),
     };
 };

@@ -42,7 +42,7 @@ async function handler(ctx) {
         throw new Error('Event not found');
     }
 
-    const items = event.markets.map((market) => ({
+    const items = event.markets!.map((market) => ({
         title: market.question,
         description: `
             <p><strong>Odds:</strong> ${formatOddsDisplay(market)}</p>
@@ -52,7 +52,7 @@ async function handler(ctx) {
         `,
         link: `https://polymarket.com/event/${event.slug}`,
         pubDate: market.startDate || event.startDate ? parseDate(market.startDate || event.startDate!) : undefined,
-        category: event.tags?.map((t) => t.label).filter(Boolean) as string[],
+        category: event.tags?.map((t) => t.label).filter((label): label is string => Boolean(label)),
     }));
 
     return {

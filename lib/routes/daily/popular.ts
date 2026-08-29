@@ -1,4 +1,4 @@
-import type { Route } from '@/types';
+import type { Data, Route } from '@/types';
 import { ViewType } from '@/types';
 
 import { baseUrl, getData, getList, variables } from './utils.js';
@@ -29,6 +29,7 @@ const query = /* GraphQL */ `
         sharedPost {
             id
             title
+            summary
             image
             readTime
             permalink
@@ -110,7 +111,7 @@ const query = /* GraphQL */ `
 `;
 
 export const route: Route = {
-    path: '/popular/:innerSharedContent?/:dateSort?',
+    path: '/popular/:dateSort?',
     example: '/daily/popular',
     view: ViewType.Articles,
     radar: [
@@ -119,14 +120,6 @@ export const route: Route = {
         },
     ],
     parameters: {
-        innerSharedContent: {
-            description: 'Where to Fetch inner Shared Posts instead of original',
-            default: 'false',
-            options: [
-                { value: 'false', label: 'False' },
-                { value: 'true', label: 'True' },
-            ],
-        },
         dateSort: {
             description: 'Sort posts by publication date instead of popularity',
             default: 'true',
@@ -142,10 +135,9 @@ export const route: Route = {
     url: 'app.daily.dev/popular',
 };
 
-async function handler(ctx) {
+async function handler(ctx): Promise<Data> {
     const link = `${baseUrl}/posts`;
-    const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 15;
-    const innerSharedContent = ctx.req.param('innerSharedContent') ? JSON.parse(ctx.req.param('innerSharedContent')) : false;
+    const limit = ctx.req.query('limit') ? Number(ctx.req.query('limit')) : 15;
     const dateSort = ctx.req.param('dateSort') ? JSON.parse(ctx.req.param('dateSort')) : true;
 
     const data = await getData({
@@ -156,7 +148,7 @@ async function handler(ctx) {
             first: limit,
         },
     });
-    const items = getList(data, innerSharedContent, dateSort);
+    const items = getList(data, dateSort);
 
     return {
         title: 'Popular posts on daily.dev',

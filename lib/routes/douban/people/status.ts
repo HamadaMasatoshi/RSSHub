@@ -16,11 +16,12 @@ export const route: Route = {
     name: '用户广播',
     maintainers: ['alfredcai'],
     handler,
-    description: `
-::: tip
--   **目前只支持整数型 id**
--   字母型的 id，可以通过头像图片链接来找到其整数型 id，图片命名规则\`ul[userid]-*.jpg\`或\`u[userid]-*.jpg\`，即取文件名中间的数字
--   例如：用户 id: \`MovieL\`他的头像图片链接：\`https://img1.doubanio.com/icon/ul1128221-98.jpg\`他的整数型 id: \`1128221\`
+    description: `::: tip
+
+- **目前只支持整数型 id**
+- 字母型的 id，可以通过头像图片链接来找到其整数型 id，图片命名规则\`ul[userid]-*.jpg\`或\`u[userid]-*.jpg\`，即取文件名中间的数字
+- 例如：用户 id: \`MovieL\`他的头像图片链接：\`https://img1.doubanio.com/icon/ul1128221-98.jpg\`他的整数型 id: \`1128221\`
+
 :::
 
 对于豆瓣用户广播内容，在 \`routeParams\` 参数中以 query string 格式设置如下选项可以控制输出的样式
@@ -41,16 +42,14 @@ export const route: Route = {
 | heightOfPics               | 广播配图高（生效取决于阅读器）                                 | 不指定 / 数字  | 不指定 |
 | sizeOfAuthorAvatar         | 作者头像大小                                                   | 数字           | 48     |
 
-  指定更多与默认值不同的参数选项可以改善 RSS 的可读性，如
+指定更多与默认值不同的参数选项可以改善 RSS 的可读性，如
 
-  [https://rsshub.app/douban/people/113894409/status/readable=1&authorNameBold=1&showAuthorInTitle=1&showAuthorInDesc=1&showAuthorAvatarInDesc=1&showEmojiForRetweet=1&showRetweetTextInTitle=1&addLinkForPics=1&showTimestampInDescription=1&showComments=1&widthOfPics=100](https://rsshub.app/douban/people/113894409/status/readable=1&authorNameBold=1&showAuthorInTitle=1&showAuthorInDesc=1&showAuthorAvatarInDesc=1&showEmojiForRetweet=1&showRetweetTextInTitle=1&addLinkForPics=1&showTimestampInDescription=1&showComments=1&widthOfPics=100)
+<https://rsshub.app/douban/people/113894409/status/readable=1&authorNameBold=1&showAuthorInTitle=1&showAuthorInDesc=1&showAuthorAvatarInDesc=1&showEmojiForRetweet=1&showRetweetTextInTitle=1&addLinkForPics=1&showTimestampInDescription=1&showComments=1&widthOfPics=100>
 
-  的效果为
+的效果为
 
   <img loading="lazy" src="/img/readable-douban.png" alt="豆瓣读书的可读豆瓣广播 RSS" />`,
 };
-
-const headers = { Referer: 'https://m.douban.com/' };
 
 function tryFixStatus(status) {
     let result = { isFixSuccess: true, why: '' };
@@ -100,7 +99,7 @@ function tryFixStatus(status) {
     }
 
     if (status.sharing_url) {
-        status.sharing_url = status.sharing_url.split('&')[0];
+        status.sharing_url = status.sharing_url.split('&', 1)[0];
     }
 
     if (!result.isFixSuccess) {
@@ -112,7 +111,24 @@ function tryFixStatus(status) {
     return result;
 }
 
-function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
+interface ContentParams {
+    readable?: boolean;
+    authorNameBold?: boolean;
+    showAuthorInTitle?: boolean;
+    showAuthorInDesc?: boolean;
+    showAuthorAvatarInDesc?: boolean;
+    showEmojiForRetweet?: boolean;
+    showRetweetTextInTitle?: boolean;
+    addLinkForPics?: boolean;
+    showTimestampInDescription?: boolean;
+    showComments?: boolean;
+    showColonInDesc?: boolean;
+    widthOfPics?: number;
+    heightOfPics?: number;
+    sizeOfAuthorAvatar?: number;
+}
+
+function getContentByActivity(ctx, item, params: ContentParams = {}, picsPrefixes: string[] = []) {
     const routeParams = querystring.parse(ctx.req.param('routeParams'));
 
     const mergedParams = {
@@ -134,8 +150,6 @@ function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
         sizeOfAuthorAvatar: fallback(params.sizeOfAuthorAvatar, queryToInteger(routeParams.sizeOfAuthorAvatar), 48),
     };
 
-    params = mergedParams;
-
     const {
         readable,
         authorNameBold,
@@ -153,7 +167,7 @@ function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
         widthOfPics,
         heightOfPics,
         sizeOfAuthorAvatar,
-    } = params;
+    } = mergedParams;
 
     function prepareImages(imageUrls: Array<string | undefined>) {
         if (!imageUrls.length) {
@@ -275,7 +289,7 @@ function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
 
     let text = status.text;
     let lastIndex = 0;
-    const replacedTextSegements = [];
+    const replacedTextSegements: any[] = [];
     for (const entity of status.entities) {
         replacedTextSegements.push(
             text.slice(lastIndex, entity.start),
@@ -312,10 +326,7 @@ function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
         }
         picsPrefixes.push(picsPrefix);
 
-        const imageUrls: Array<string | undefined> = [];
-        for (const image of status.images) {
-            imageUrls.push(image?.large?.url);
-        }
+        const imageUrls: Array<string | undefined> = Array.from(status.images, (image: any) => image?.large?.url);
         description += prepareImages(imageUrls);
     }
 
@@ -411,10 +422,7 @@ function getContentByActivity(ctx, item, params = {}, picsPrefixes = []) {
             description += '<br clear="both" /><div style="clear: both"></div></blockquote>';
         }
         if (status.card.images_block) {
-            const imageUrls: Array<string | undefined> = [];
-            for (const image of status.card.images_block.images) {
-                imageUrls.push(image.image?.large?.url);
-            }
+            const imageUrls: Array<string | undefined> = Array.from(status.card.images_block.images, (image: any) => image.image?.large?.url);
             description += prepareImages(imageUrls);
         }
     }
@@ -496,7 +504,7 @@ async function getFullTextItems(items) {
             } else {
                 const {
                     data: { text },
-                } = await got({ url, headers });
+                } = await got(url);
                 cache.set(url, text);
                 item.status.text = text;
             }
@@ -513,7 +521,7 @@ async function getFullTextItems(items) {
                     // 存在reshared_status字段正常，但尝试获取时返回403的情况。比如原po被炸号就可能这样。
                     const {
                         data: { text },
-                    } = await got({ url, headers });
+                    } = await got(url);
                     cache.set(url, text);
                     item.status.reshared_status.text = text;
                 } catch {
@@ -530,7 +538,7 @@ async function handler(ctx) {
     const items = await cache.tryGet(
         url,
         async () => {
-            const _r = await got({ url, headers });
+            const _r = await got(url);
             return _r.data.items;
         },
         config.cache.routeExpire,

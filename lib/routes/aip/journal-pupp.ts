@@ -18,12 +18,12 @@ const handler = async (ctx) => {
     }
 
     // use Playwright due to the obstacle by cloudflare challenge
-    const browser = await playwright();
+    const context = await playwright();
 
     const { jrnlName, list } = await cache.tryGet(
         jrnlUrl,
         async () => {
-            const response = await playwrightGet(jrnlUrl, browser);
+            const response = await playwrightGet(jrnlUrl, context);
             const $ = load(response);
             const jrnlName = $('.header-journal-title').text();
             const list = $('.card')
@@ -34,7 +34,7 @@ const handler = async (ctx) => {
                     const authors = $(item).find('.entryAuthor.all').text();
                     const img = $(item).find('img').attr('src');
                     const link = $(item).find('.ref.nowrap').attr('href');
-                    const doi = link.replace('/doi/full/', '');
+                    const doi = link!.replace('/doi/full/', '');
                     const description = renderDesc(title, authors, doi, img);
                     return {
                         title,
@@ -52,7 +52,7 @@ const handler = async (ctx) => {
         false
     );
 
-    await browser.close();
+    await context.close();
 
     return {
         title: jrnlName,
@@ -61,4 +61,5 @@ const handler = async (ctx) => {
         allowEmpty: true,
     };
 };
+// TODO: missing route export
 export default handler;

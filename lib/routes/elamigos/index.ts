@@ -75,7 +75,7 @@ function extractGames($: any, limit: number, baseUrl: string): Array<{ title: st
             arrivedAtGameSection = true;
             // Found H1 date, fill all empty Games with the new Date.
             for (const game of games) {
-                if (game.pubDate === null || game.pubDate.trim() === '') {
+                if (game.pubDate === null || game.pubDate === '') {
                     game.pubDate = match[0];
                 }
             }
@@ -114,15 +114,16 @@ function extractLatestDate(pageHtml: string): Date | null {
 function sanitizeHtml(pageHtml: string): string {
     const $page = load(pageHtml);
 
-    $page('script, style, link, nav').remove();
+    $page('style, link, nav').remove();
 
     $page('*').each((_: number, elem: any) => {
-        if (elem.attribs) {
-            const attributes = Object.keys(elem.attribs);
-            for (const attr of attributes) {
-                if (attr.toLowerCase().startsWith('on')) {
-                    $page(elem).removeAttr(attr);
-                }
+        if (!elem.attribs) {
+            return;
+        }
+        const attributes = Object.keys(elem.attribs);
+        for (const attr of attributes) {
+            if (attr.toLowerCase().startsWith('on')) {
+                $page(elem).removeAttr(attr);
             }
         }
     });
@@ -139,7 +140,7 @@ function sanitizeHtml(pageHtml: string): string {
 function processGameItem(game: { title: string; link: string; pubDate: string | null }): Promise<DataItem> {
     const cacheKey = `elamigos:${game.link}`;
 
-    return cache.tryGet(cacheKey, async () => {
+    return cache.tryGet<DataItem>(cacheKey, async () => {
         try {
             const { data: pageHtml } = await got(game.link);
 
@@ -160,13 +161,13 @@ function processGameItem(game: { title: string; link: string; pubDate: string | 
                 link: game.link,
                 pubDate: finalPublishDate === null ? undefined : finalPublishDate.toUTCString(),
                 description: contentHtml,
-            } as DataItem;
+            };
         } catch {
             return {
                 title: game.title,
                 link: game.link,
                 description: `<p>View game page: <a href="${game.link}">${game.link}</a></p>`,
-            } as DataItem;
+            };
         }
     });
 }

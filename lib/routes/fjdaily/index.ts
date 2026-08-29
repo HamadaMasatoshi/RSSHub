@@ -173,11 +173,11 @@ async function handler(ctx) {
 
             return {
                 title: a.text().replaceAll(/\s+/g, ' ').trim(),
-                link: new URL(href, padUrl).toString().replace('/pad/', '/pc/'),
+                link: new URL(href, padUrl).href.replace('/pad/', '/pc/'),
                 category: [currentCategory.replace(/^\d+版\s*/, '')],
             };
         })
-        .filter((item): item is DataItem => item !== undefined);
+        .filter((item) => item !== undefined);
 
     if (list.length === 0) {
         throw new Error(`No articles were found for ${yearMonth}${day}.`);
@@ -188,8 +188,8 @@ async function handler(ctx) {
             cache.tryGet(item.link!, async () => {
                 const detailResponse = await got(item.link!);
                 const detail = load(detailResponse.data);
-                const pubDate = detail('#NewsArticlePubDay').text().trim();
-                const author = detail('#NewsArticleAuthor').text().trim();
+                const pubDate = detail('#NewsArticlePubDay').text();
+                const author = detail('#NewsArticleAuthor').text();
                 const description = getItemDescription(detail);
 
                 return {

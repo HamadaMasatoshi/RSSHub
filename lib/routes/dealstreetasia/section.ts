@@ -1,6 +1,6 @@
 import { load } from 'cheerio'; // An HTML parser with an API similar to jQuery
 
-import type { Route } from '@/types';
+import type { Data, Route } from '@/types';
 // import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch'; // Unified request library used
 // import playwright from '@/utils/playwright';
@@ -29,7 +29,7 @@ async function handler(ctx) {
     return items;
 }
 
-async function fetchPage(section: string) {
+async function fetchPage(section: string): Promise<Data> {
     const baseUrl = 'https://dealstreetasia.com'; // Define base URL
 
     const response = await ofetch(`${baseUrl}/section/${section}/`);

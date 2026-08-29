@@ -34,13 +34,13 @@ const createNonce = (length = 16) => {
     return nonce;
 };
 
-const cleanQuery = (query: ApiQuery) => Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined)) as Record<string, number | string>;
+const cleanQuery = (query: ApiQuery) => Object.fromEntries(Object.entries(query).filter((entry): entry is [string, number | string] => entry[1] !== undefined));
 
 const buildSignedHeaders = (path: string, query: Record<string, number | string>) => {
     const timestamp = Date.now().toString();
     const nonce = createNonce();
     const canonicalQuery = Object.keys(query)
-        .toSorted()
+        .toSorted((a, b) => a.localeCompare(b))
         .map((key) => `${key}=${query[key] ?? ''}`)
         .join('&');
     const signature = CryptoJS.HmacSHA256(`GET|${path}|${timestamp}|${nonce}|${canonicalQuery}`, appSecret).toString();
@@ -70,7 +70,7 @@ const render = (data: { image?: string; description?: string }) => {
     $('img').each((_, e) => {
         const $e = $(e);
         const src = $e.attr('src');
-        $e.attr('src', src?.split('?')[0]);
+        $e.attr('src', src?.split('?', 1)[0]);
     });
 
     return $.html();
@@ -146,8 +146,8 @@ export const route: Route = {
 | newsflash | article |
 
 | 全部 | 深度 | 精选 | 热点追踪 |
-| :--: | :--: | :--: | :---: |
-|     | -2  | 1    |  2     |`,
+| :--: | :--: | :--: | :------: |
+|      |  -2  |   1  |     2    |`,
 };
 
 async function handler(ctx) {

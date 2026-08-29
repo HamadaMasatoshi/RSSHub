@@ -1,6 +1,6 @@
 import { load } from 'cheerio';
 
-import type { Route } from '@/types';
+import type { DataItem, Route } from '@/types';
 import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
@@ -71,7 +71,7 @@ async function handler(ctx) {
         const onclickValue = $('.button').first().attr('onclick');
         const targetUrl = onclickValue?.match(/window\.open\('([^']+)'/)?.[1];
 
-        return { url: new URL(targetUrl, 'https://2048.info').href };
+        return { url: new URL(targetUrl!, 'https://2048.info').href };
     });
     // 获取重定向后的url
     const redirectResponse = await ofetch.raw(domainInfo.url);
@@ -109,13 +109,13 @@ async function handler(ctx) {
         .last()
         .nextAll('.tr3')
         .toArray()
-        .map((item) => {
-            item = $(item).find('a.subject');
+        .map((item): DataItem & { link: string; guid: string } => {
+            const $item = $(item).find('a.subject');
 
             return {
-                title: item.text(),
-                link: `${currentHost}/${item.attr('href')}`,
-                guid: `${rootUrl}/2048/${item.attr('href')}`,
+                title: $item.text(),
+                link: `${currentHost}/${$item.attr('href')}`,
+                guid: `${rootUrl}/2048/${$item.attr('href')}`,
             };
         })
         .filter((item) => !item.link.includes('undefined'));
@@ -133,17 +133,17 @@ async function handler(ctx) {
 
                 content('.ads, .tips').remove();
 
-                content('ignore_js_op').each(function () {
-                    const img = content(this).find('img');
+                content('ignore_js_op').each((_, el) => {
+                    const img = content(el).find('img');
                     const originalSrc = img.attr('data-original');
                     const fallbackSrc = img.attr('src');
                     // 判断是否有 data-original 属性，若有则使用其值，否则使用 src 属性值
                     const imgSrc = originalSrc || fallbackSrc;
-                    content(this).replaceWith(`<img src="${imgSrc}">`);
+                    content(el).replaceWith(`<img src="${imgSrc}">`);
                 });
 
                 item.author = content('.fl.black').first().text();
-                item.pubDate = timezone(parseDate(content('span.fl.gray').first().attr('title')), +8);
+                item.pubDate = timezone(parseDate(content('span.fl.gray').first().attr('title')!), 8);
 
                 const readTpc = content('#read_tpc').first();
                 const copyLink = content('#copytext')?.first()?.text();
@@ -164,7 +164,7 @@ async function handler(ctx) {
                     }
                 }
                 if (!item.enclosure_url) {
-                    const hashMatch = readTpcHtml.match(/哈希校验[^;]*;\s*([a-fA-F0-9]{40})\s*[;；]/);
+                    const hashMatch = readTpcHtml.match(/哈希校验[^;]*;\s*([a-f0-9]{40})\s*[;；]/i);
                     const magnetFromHash = hashMatch ? `magnet:?xt=urn:btih:${hashMatch[1]}` : null;
                     const magnetFromText = magnetText.match(/magnet:\?xt=urn:btih:[^\s"'<>]+/)?.[0];
                     const magnetLink = magnetFromText ?? readTpcHtml.match(/magnet:\?xt=urn:btih:[^\s"'<>]+/)?.[0] ?? magnetFromHash ?? copyLink;
@@ -174,8 +174,8 @@ async function handler(ctx) {
                     }
                 }
 
-                content('.showhide img').each(function () {
-                    readTpc.append(`<br><img style="max-width: 100%;" src="${content(this).attr('src')}">`);
+                content('.showhide img').each((_, el) => {
+                    readTpc.append(`<br><img style="max-width: 100%;" src="${content(el).attr('src')}">`);
                 });
 
                 item.description = readTpc.html();

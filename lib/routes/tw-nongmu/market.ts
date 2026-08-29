@@ -1,6 +1,6 @@
 import { load } from 'cheerio';
 
-import type { Route } from '@/types';
+import type { Language, Route } from '@/types';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
 import { finishArticleItem } from '@/utils/wechat-mp';
@@ -41,10 +41,12 @@ async function handler() {
 
     const items = await Promise.all(list.map((item) => finishArticleItem(item)));
 
+    const language = $('html').attr('lang') as Language;
+
     return {
         title: $('head title').text(),
         link,
-        language: $('html').attr('lang') as const,
+        language,
         image: `${baseUrl}/favicon.ico`,
         item: items,
     };

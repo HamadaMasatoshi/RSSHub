@@ -1,4 +1,4 @@
-import type { DataItem, Route } from '@/types';
+import type { Route } from '@/types';
 import { ViewType } from '@/types';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
@@ -62,9 +62,8 @@ export const route: Route = {
     name: 'App Update',
     maintainers: ['EkkoG', 'nczitzk'],
     handler,
-    description: `
-::: tip
-  For example, the URL of [GarageBand](https://apps.apple.com/us/app/garageband/id408709785) in the App Store is \`https://apps.apple.com/us/app/garageband/id408709785\`. In this case, the \`App Store Country\` parameter for the route is \`us\`, and the \`App id\` parameter is \`id408709785\`. So the route should be [\`/apple/apps/update/us/id408709785\`](https://rsshub.app/apple/apps/update/us/id408709785).
+    description: `::: tip
+For example, the URL of [GarageBand](https://apps.apple.com/us/app/garageband/id408709785) in the App Store is \`https://apps.apple.com/us/app/garageband/id408709785\`. In this case, the \`App Store Country\` parameter for the route is \`us\`, and the \`App id\` parameter is \`id408709785\`. So the route should be [\`/apple/apps/update/us/id408709785\`](https://rsshub.app/apple/apps/update/us/id408709785).
 :::`,
 };
 
@@ -80,7 +79,7 @@ async function handler(ctx) {
     }
     platform = undefined;
 
-    const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 100;
+    const limit = ctx.req.query('limit') ? Number(ctx.req.query('limit')) : 100;
 
     const rootUrl = 'https://apps.apple.com';
     const currentUrl = new URL(`${country}/app/${id}`, rootUrl).href;
@@ -114,7 +113,7 @@ async function handler(ctx) {
     const artistName = attributes.artistName;
     const platformAttributes = attributes.platformAttributes;
 
-    let items: DataItem[] = [];
+    let items: any[] = [];
     let title: string;
     let description = '';
     let image = '';
@@ -130,8 +129,7 @@ async function handler(ctx) {
         image = platformAttribute.iconArtwork?.url?.replace('{w}x{h}{c}.{f}', '3000x3000bb.webp');
     } else {
         title = appName;
-        for (const pid of Object.keys(platformAttributes)) {
-            const platformAttribute = platformAttributes[pid];
+        for (const [pid, platformAttribute] of Object.entries<any>(platformAttributes)) {
             items = [
                 ...items,
                 ...platformAttribute.versionHistory.map((v) => ({

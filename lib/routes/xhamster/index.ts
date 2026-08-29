@@ -60,7 +60,7 @@ interface Initials {
 }
 
 function extractInitials(scriptContent: string): Initials {
-    const match = scriptContent.match(/window\.initials\s*=\s*([\s\S]*?);?$/);
+    const match = scriptContent.match(/window\.initials\s*=\s*(\S[\s\S]*?);?$/);
     if (!match) {
         throw new Error('initials not found');
     }
@@ -130,7 +130,7 @@ async function handler(ctx) {
             content: {
                 url: video.trailerURL ?? video.pageURL,
                 type: 'video/mp4',
-                ...(video.duration && { duration: video.duration }),
+                ...(video.duration && { duration: String(video.duration) }),
             },
             thumbnail: {
                 url: video.imageURL ?? video.thumbURL,

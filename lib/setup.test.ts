@@ -1,3 +1,4 @@
+// oxlint-disable unicorn-js/no-useless-template-literals
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach } from 'vitest';
@@ -279,10 +280,8 @@ Unknown paragraph
             req: { headers: Object.fromEntries(request.headers.entries()) },
         });
     }),
-    http.post('http://rsshub.test/json-post', async ({ request }) => {
-        const jsonData = (await request.json()) as {
-            test: string;
-        };
+    http.post<never, { test: string }>('http://rsshub.test/json-post', async ({ request }) => {
+        const jsonData = await request.json();
         return HttpResponse.json({
             test: jsonData?.test,
         });

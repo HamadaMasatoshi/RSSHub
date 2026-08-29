@@ -1,3 +1,4 @@
+// oxlint-disable unicorn-js/no-global-object-property-assignment
 // Cloudflare Worker entry point
 // This file contains Worker-specific initialization and polyfills
 
@@ -6,14 +7,14 @@ import '@/utils/request-rewriter';
 
 // Polyfill MessagePort for undici compatibility
 // undici uses MessagePort for type checking in webidl
-if (globalThis.MessagePort === undefined) {
+if (!('MessagePort' in globalThis)) {
     // @ts-expect-error Minimal polyfill for undici compatibility
     globalThis.MessagePort = class MessagePort extends EventTarget {
         onmessage: ((event: MessageEvent) => void) | null = null;
         onmessageerror: ((event: MessageEvent) => void) | null = null;
         start() {}
         close() {}
-        postMessage(_message: unknown, _transfer?: Transferable[]) {}
+        postMessage<TMessage>(_message: TMessage, _transfer?: Transferable[]) {}
     };
 }
 
