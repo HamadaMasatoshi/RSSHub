@@ -1,7 +1,6 @@
 import { load } from 'cheerio';
 import { renderToString } from 'hono/jsx/dom/server';
 
-import type { DataItem } from '@/types';
 import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { parseDate, parseRelativeDate } from '@/utils/parse-date';
@@ -39,7 +38,7 @@ export default {
             let description = contentDetail.content || contentDetail.summary || contentDetail.desc || '';
 
             if (contentDetail.videos) {
-                description += contentDetail.summary;
+                description = description + contentDetail.summary;
             }
             if (useOldMode) {
                 if (contentDetail.videos) {
@@ -55,27 +54,27 @@ export default {
                 pubDate = parseRelativeDate(contentDetail.pubTime);
             }
 
-            const rss_item: DataItem = {
+            const rss_item = {
                 title: contentDetail.name || contentDetail.shareName,
                 link: itemUrl,
                 description,
                 category: [...(contentDetail.tagList?.map((t) => t.tag) ?? []), contentDetail?.nodeInfo?.name ?? []],
                 pubDate,
                 author: contentDetail.author || '',
-                media: {
-                    content: {
-                        url: item.pic || contentDetail.videos?.coverUrl || contentDetail.bigPic,
-                    },
-                    thumbnails: {
-                        url: item.sharePic || contentDetail.sharePic,
-                    },
-                },
+                //                media: {
+                //                    content: {
+                //                        url: item.pic || contentDetail.videos?.coverUrl || contentDetail.bigPic,
+                //                    },
+                //                    thumbnails: {
+                //                        url: item.sharePic || contentDetail.sharePic,
+                //                    },
+                //                },
             };
-            if (contentDetail.voiceInfo?.isHaveVoice) {
-                rss_item.enclosure_type = 'audio/mpeg';
-                rss_item.enclosure_url = contentDetail.voiceInfo.voiceSrc;
-                rss_item.itunes_item_image = item.pic || contentDetail.videos?.coverUrl;
-            }
+            //            if (contentDetail.voiceInfo?.isHaveVoice) {
+            //                rss_item.enclosure_type = 'audio/mpeg';
+            //                rss_item.enclosure_url = contentDetail.voiceInfo.voiceSrc;
+            //                rss_item.itunes_item_image = item.pic || contentDetail.videos?.coverUrl;
+            //            }
             return rss_item;
         });
     },
@@ -88,7 +87,7 @@ const ThepaperVideoDetail = ({ videos }: { videos: { url: string; coverUrl: stri
     <video
         src={videos.url}
         controls
-        playsinline
+        playsinline="true"
         webkit-playsinline="true"
         x5-playsinline="true"
         x5-video-player-type="h5"
