@@ -35,7 +35,7 @@ export const handler = async (ctx): Promise<Data> => {
         const link = href ? (href.startsWith('/') ? new URL(href, rootUrl).href : href) : undefined;
 
         if (link && /\/(?:article|video)\/\w+\.html/.test(link)) {
-            items[link] = {
+            items.set(link, {
                 title: item.text(),
                 link,
             });
