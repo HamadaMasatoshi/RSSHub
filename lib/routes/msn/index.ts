@@ -79,10 +79,18 @@ export const route: Route = {
                     }
                 }
 
+                // 优先获取 MSN 返回的具体作者名或提供商名称（如 AFP），若均无则使用频道名
+                const articleAuthor =
+                    card.authors?.map((a: { name?: string }) => a.name).filter(Boolean).join(', ') ||
+                    card.provider?.name ||
+                    card.providerName ||
+                    name;
+
                 return {
                     title: card.title,
                     link: card.url,
                     description: articleContentHtml,
+                    author: articleAuthor,
                     pubDate: parseDate(card.publishedDateTime),
                     category: card.category ? [card.category] : [],
                 };
