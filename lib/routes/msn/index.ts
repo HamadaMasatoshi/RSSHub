@@ -1,12 +1,11 @@
 import { load } from 'cheerio';
-
 import type { Route } from '@/types';
 import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
 
 const apiKey = '0QfOX3Vn51YCzitbLaRkTTBadtWpgTN8NZLW0C1SEM';
-const fetchedArticleContentHtmlImgRegex = /<img data-reference="image" data-document-id="cms\/api\/amp\/image\/([A-Za-z0-9]+)">/;
+const fetchedArticleContentHtmlImgRegex = /<img data-reference="image" data-document-id="cms\/api\/amp\/image\/([A-Za-z0-9]+)"[^>]*>/g;
 
 export const route: Route = {
     path: '/:market/:name/:id',
@@ -16,7 +15,7 @@ export const route: Route = {
         id: 'ID of the channel (always starts with sr-vid). Find it in MSN url, e.g. sr-vid-08gw7ky4u229xjsjvnf4n6n7v67gxm0pjmv9fr4y2x9jjmwcri4s',
     },
     categories: ['traditional-media'],
-    example: '/msn/zh-tw/Bloomberg/sr-vid-08gw7ky4u229xjsjvnf4n6n7v67gxm0pjmv9fr4y2x9jjmwcri4s',
+    example: '/msn/zh-hk/AFP/sr-vid-3kv7h73mtcdhywg28d4f9ihgi4xcniq2ubb83iikdu3qwmbd73pa',
     description: 'MSN News',
     features: {
         requireConfig: false,
@@ -47,31 +46,45 @@ export const route: Route = {
         const requestMuid = parsedSettings.fd_muid;
 
         const jsonData = await ofetch(`https://assets.msn.com/service/news/feed/pages/providerfullpage?market=${market}&query=newest&CommunityProfileId=${truncatedId}&apikey=${apiKey}&user=m-${requestMuid}`);
-        const items = await Promise.all(
-            jsonData.sections[0].cards.map(async (card) => {
-                let articleContentHtml = '';
 
-                const articleUrl = card.url;
-                const parsedArticleUrl = URL.parse(articleUrl);
-                let articleId = parsedArticleUrl?.pathname.split('/').pop();
-                if (articleId?.startsWith('ar-')) {
-                    articleId = articleId.slice(3);
-                    const fetchedArticleContentHtml = await cache.tryGet(articleId, async () => {
-                        const articleData = await ofetch<{ body: string }>(`https://assets.msn.com/content/view/v2/Detail/${market}/${articleId}`);
-                        return articleData.body;
-                    });
-                    articleContentHtml = fetchedArticleContentHtml.replace(fetchedArticleContentHtmlImgRegex, '<img src="https://img-s-msn-com.akamaized.net/tenant/amp/entityid/$1.img">');
+        const items = await Promise.all(
+            (jsonData.sections?.[0]?.cards ?? []).map(async (card) => {
+                let articleContentHtml = card.body || card.abstract || '';
+
+                // 优先从对象属性获取，失败时提取 URL 中的 ar-ID
+                let rawId = card.id || card.articleId;
+                if (!rawId && card.url) {
+                    const matched = card.url.match(/ar-([A-Za-z0-9]+)/);
+                    if (matched) {
+                        rawId = matched[1];
+                    }
+                }
+
+                if (rawId) {
+                    const cleanId = rawId.replace(/^ar-/, '');
+                    try {
+                        const fetchedArticleContentHtml = await cache.tryGet(`msn:${market}:${cleanId}`, async () => {
+                            const articleData = await ofetch<{ body?: string }>(`https://assets.msn.com/content/view/v2/Detail/${market}/${cleanId}`);
+                            return articleData?.body ?? '';
+                        });
+
+                        if (fetchedArticleContentHtml) {
+                            articleContentHtml = fetchedArticleContentHtml.replace(
+                                fetchedArticleContentHtmlImgRegex,
+                                '<img src="https://img-s-msn-com.akamaized.net/tenant/amp/entityid/$1.img">'
+                            );
+                        }
+                    } catch {
+                        // 网络或接口解析异常时退回默认 abstract
+                    }
                 }
 
                 return {
                     title: card.title,
-                    link: articleUrl,
-                    description: card.abstract,
-                    content: {
-                        html: articleContentHtml,
-                    },
+                    link: card.url,
+                    description: articleContentHtml,
                     pubDate: parseDate(card.publishedDateTime),
-                    category: [card.category],
+                    category: card.category ? [card.category] : [],
                 };
             })
         );
