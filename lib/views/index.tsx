@@ -163,19 +163,6 @@ const Index: FC<{ debugQuery: string | undefined }> = ({ debugQuery }) => {
                 ) : null}
             </div>
 
-            <div className="text-center pt-4 pb-8 w-full text-sm font-medium space-y-2">
-                <p className="space-x-4">
-                    <a target="_blank" href="https://github.com/DIYgod/RSSHub">
-                        <img className="inline" src="https://icons.ly/github/_/fff" alt="github" width="20" height="20" />
-                    </a>
-                    <a target="_blank" href="https://t.me/rsshub">
-                        <img className="inline" src="https://icons.ly/telegram" alt="telegram group" width="20" height="20" />
-                    </a>
-                    <a target="_blank" href="https://t.me/awesomeRSSHub">
-                        <img className="inline" src="https://icons.ly/telegram" alt="telegram channel" width="20" height="20" />
-                    </a>
-                </p>
-            </div>
         </Layout>
     );
 };
