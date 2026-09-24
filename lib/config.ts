@@ -94,6 +94,8 @@ type ConfigEnvKeys =
     | 'BTBYR_HOST'
     | 'BTBYR_COOKIE'
     | 'BUPT_PORTAL_COOKIE'
+    | 'BUKENAVI_EMAIL'
+    | 'BUKENAVI_PASSWORD'
     | 'CAIXIN_COOKIE'
     | 'CIVITAI_COOKIE'
     | 'DIANPING_COOKIE'
@@ -197,6 +199,8 @@ type ConfigEnvKeys =
     | 'SIS001_BASE_URL'
     | 'SKEB_BEARER_TOKEN'
     | 'SORRYCC_COOKIES'
+    | 'SOUTHPLUS_COOKIE'
+    | 'SOUTHPLUS_UA'
     | 'SPOTIFY_CLIENT_ID'
     | 'SPOTIFY_CLIENT_SECRET'
     | 'SPOTIFY_REFRESHTOKEN'
@@ -381,6 +385,10 @@ export type Config = {
     btbyr: {
         host?: string;
         cookies?: string;
+    };
+    bukenavi: {
+        email?: string;
+        password?: string;
     };
     bupt: {
         portal_cookie?: string;
@@ -621,6 +629,10 @@ export type Config = {
     };
     sorrycc: {
         cookie?: string;
+    };
+    southplus: {
+        cookie?: string;
+        ua?: string;
     };
     spotify: {
         clientId?: string;
@@ -898,6 +910,10 @@ const calculateValue = () => {
         bupt: {
             portal_cookie: envs.BUPT_PORTAL_COOKIE,
         },
+        bukenavi: {
+            email: envs.BUKENAVI_EMAIL,
+            password: envs.BUKENAVI_PASSWORD,
+        },
         caixin: {
             cookie: envs.CAIXIN_COOKIE,
         },
@@ -1134,6 +1150,10 @@ const calculateValue = () => {
         },
         sorrycc: {
             cookie: envs.SORRYCC_COOKIES,
+        },
+        southplus: {
+            cookie: envs.SOUTHPLUS_COOKIE,
+            ua: envs.SOUTHPLUS_UA,
         },
         spotify: {
             clientId: envs.SPOTIFY_CLIENT_ID,
