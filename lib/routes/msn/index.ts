@@ -7,6 +7,25 @@ import { parseDate } from '@/utils/parse-date';
 const apiKey = '0QfOX3Vn51YCzitbLaRkTTBadtWpgTN8NZLW0C1SEM';
 const fetchedArticleContentHtmlImgRegex = /<img data-reference="image" data-document-id="cms\/api\/amp\/image\/([A-Za-z0-9]+)"[^>]*>/g;
 
+// 清理 URL 追踪参数并解码 UTF-8 汉字
+const cleanAndDecodeUrl = (rawUrl?: string): string => {
+    if (!rawUrl) {
+        return '';
+    }
+    try {
+        const urlObj = new URL(rawUrl);
+        urlObj.search = ''; // 1. 移除 ? 后面的全部追踪参数 (如 ocid, cvid 等)
+        const cleanStr = urlObj.toString();
+        try {
+            return decodeURIComponent(cleanStr); // 2. 解码 %XX 编码为正常中文
+        } catch {
+            return cleanStr;
+        }
+    } catch {
+        return rawUrl.split('?')[0];
+    }
+};
+
 export const route: Route = {
     path: '/:market/:name/:id',
     parameters: {
@@ -65,7 +84,6 @@ export const route: Route = {
             firstApiUrl += `&user=m-${requestMuid}`;
         }
 
-        // 1. 请求第 1 页（约 12 篇）
         interface MsnFeedResponse {
             nextPageUrl?: string;
             sections?: Array<{
@@ -85,17 +103,18 @@ export const route: Route = {
             }>;
         }
 
+        // 1. 请求第 1 页
         const firstPageData = await ofetch<MsnFeedResponse>(firstApiUrl);
         let rawCards = firstPageData.sections?.[0]?.cards ?? [];
 
-        // 2. 利用根节点返回的 nextPageUrl 请求第 2 页，合并至 20+ 篇
+        // 2. 利用 nextPageUrl 追加第 2 页，合并至 20+ 篇
         if (firstPageData.nextPageUrl) {
             try {
                 const secondPageData = await ofetch<MsnFeedResponse>(firstPageData.nextPageUrl);
                 const secondCards = secondPageData.sections?.[0]?.cards ?? [];
                 rawCards = [...rawCards, ...secondCards];
             } catch {
-                // 若第二页获取失败则保持第一页数据
+                // 网络异常降级保留第 1 页
             }
         }
 
@@ -136,9 +155,12 @@ export const route: Route = {
                     card.providerName ||
                     name;
 
+                // 清洗与解码文章 URL
+                const cleanLink = cleanAndDecodeUrl(card.url);
+
                 return {
                     title: card.title,
-                    link: card.url,
+                    link: cleanLink,
                     description: articleContentHtml,
                     author: articleAuthor,
                     pubDate: parseDate(card.publishedDateTime),
