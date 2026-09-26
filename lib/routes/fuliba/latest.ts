@@ -26,39 +26,38 @@ export const route: Route = {
     url: 'fuliba.net/',
 };
 
+// 模拟 Miniflux 的 nl2br 规则：将 \n 换行符转为 HTML <br> 标签
+function nl2br(str: string): string {
+    return str.replace(/(\r\n|\n\r|\r|\n)/g, '<br>');
+}
+
 async function handler(ctx) {
     const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 30;
 
-    // 解析永久域名订阅源
     const feed = await parser.parseURL('https://fuliba.net/feed');
 
     const items = feed.items.slice(0, limit).map((item) => {
-        const rawContent = item['content:encoded'] || item.content || item.contentSnippet || '';
+        let rawContent = item['content:encoded'] || item.content || item.contentSnippet || '';
 
-        // 使用 cheerio 修复排版问题
+        // 1. 执行 nl2br，恢复丢失的换行排版
+        rawContent = nl2br(rawContent);
+
+        // 2. 使用 cheerio 清除多余图片占位符属性，还原真实图片
         const $ = load(rawContent, null, false);
-
-        // 剔除干扰阅读的行内样式及 Class 标签
-        $('*').removeAttr('style').removeAttr('class').removeAttr('id');
-
-        // 修复 WordPress 缩略图与延迟加载属性
         $('img').each((_, img) => {
             const $img = $(img);
-            const src = $img.attr('data-orig-file') || $img.attr('src');
-            if (src) {
-                $img.attr('src', src);
+            const realSrc = $img.attr('data-orig-file') || $img.attr('data-src') || $img.attr('src');
+            if (realSrc) {
+                $img.attr('src', realSrc);
             }
             $img.removeAttr('srcset').removeAttr('sizes').removeAttr('loading');
         });
-
-        // 压缩连续换行符
-        const cleanContent = $.html().replace(/(<br\s*\/?>\s*){2,}/gi, '<br>');
 
         return {
             title: item.title,
             link: item.link,
             guid: item.guid ?? item.link,
-            description: cleanContent,
+            description: $.html(),
             pubDate: item.pubDate,
             author: item.creator || item.author || '福利吧',
         };
