@@ -1,6 +1,6 @@
 import type { Route } from '@/types';
-import got from '@/utils/got';
-import { parseDate } from '@/utils/parse-date';
+import parser from '@/utils/rss-parser';
+import { load } from 'cheerio';
 
 export const route: Route = {
     path: '/latest',
@@ -17,34 +17,55 @@ export const route: Route = {
     },
     radar: [
         {
-            source: ['fuliba2023.net/'],
+            source: ['fuliba.net/'],
         },
     ],
     name: '最新',
     maintainers: ['shinemoon'],
     handler,
-    url: 'fuliba2023.net/',
+    url: 'fuliba.net/',
 };
 
+// 模拟 Miniflux 的 nl2br 规则：将 \n 换行符转为 HTML <br> 标签
+function nl2br(str: string): string {
+    return str.replace(/(\r\n|\n\r|\r|\n)/g, '<br>');
+}
+
 async function handler(ctx) {
-    const { data: response } = await got('https://fuliba2023.net/wp-json/wp/v2/posts', {
-        searchParams: {
-            per_page: ctx.req.query('limit') ?? 100,
-            _embed: 1,
-        },
+    const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 30;
+
+    const feed = await parser.parseURL('https://fuliba.net/feed');
+
+    const items = feed.items.slice(0, limit).map((item) => {
+        let rawContent = item['content:encoded'] || item.content || item.contentSnippet || '';
+
+        // 1. 执行 nl2br，恢复丢失的换行排版
+        rawContent = nl2br(rawContent);
+
+        // 2. 使用 cheerio 清除多余图片占位符属性，还原真实图片
+        const $ = load(rawContent, null, false);
+        $('img').each((_, img) => {
+            const $img = $(img);
+            const realSrc = $img.attr('data-orig-file') || $img.attr('data-src') || $img.attr('src');
+            if (realSrc) {
+                $img.attr('src', realSrc);
+            }
+            $img.removeAttr('srcset').removeAttr('sizes').removeAttr('loading');
+        });
+
+        return {
+            title: item.title,
+            link: item.link,
+            guid: item.guid ?? item.link,
+            description: $.html(),
+            pubDate: item.pubDate,
+            author: item.creator || item.author || '福利吧',
+        };
     });
-    const items = response.map((item) => ({
-        title: item.title.rendered,
-        link: item.link,
-        guid: item.guid.rendered,
-        description: item.content.rendered,
-        pubDate: parseDate(item.date_gmt),
-        author: item._embedded.author[0].name,
-    }));
 
     return {
-        title: '福利吧',
-        link: 'https://fuliba2023.net',
+        title: feed.title ?? '福利吧',
+        link: 'https://fuliba.net',
         item: items,
     };
 }
