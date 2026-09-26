@@ -33,8 +33,6 @@ export const route: Route = {
     maintainers: ['KTachibanaM'],
     handler: async (ctx) => {
         const { market, name, id } = ctx.req.param();
-        // 获取 URL 中的 limit 参数，未设置时默认抓取 20 篇
-        const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 20;
 
         let truncatedId = id;
         if (truncatedId.startsWith('sr-')) {
@@ -43,24 +41,68 @@ export const route: Route = {
 
         const pageData = await ofetch(`https://www.msn.com/${market}/channel/source/${name}/${id}`);
         const $ = load(pageData);
+
+        let requestMuid = '';
         const headElement = $('head');
-        const dataClientSettings = headElement.attr('data-client-settings') ?? '{}';
-        const parsedSettings = JSON.parse(dataClientSettings);
-        const requestMuid = parsedSettings.fd_muid;
+        const dataClientSettings = headElement.attr('data-client-settings');
+        if (dataClientSettings) {
+            try {
+                const parsedSettings = JSON.parse(dataClientSettings);
+                requestMuid = parsedSettings.fd_muid || '';
+            } catch {
+                // 忽略解析错误
+            }
+        }
+        if (!requestMuid) {
+            const muidMatch = pageData.match(/"fd_muid":"([^"]+)"/);
+            if (muidMatch) {
+                requestMuid = muidMatch[1];
+            }
+        }
 
-        // 在 API URL 中加上 count 参数控制返回数量
-        const jsonData = await ofetch(
-            `https://assets.msn.com/service/news/feed/pages/providerfullpage?market=${market}&query=newest&CommunityProfileId=${truncatedId}&apikey=${apiKey}&user=m-${requestMuid}&count=${limit}&pageSize=${limit}`
-        );
+        let firstApiUrl = `https://assets.msn.com/service/news/feed/pages/providerfullpage?market=${market}&query=newest&CommunityProfileId=${truncatedId}&apikey=${apiKey}`;
+        if (requestMuid) {
+            firstApiUrl += `&user=m-${requestMuid}`;
+        }
 
-        const rawCards = jsonData.sections?.[0]?.cards ?? [];
-        const targetCards = rawCards.slice(0, limit);
+        // 1. 请求第 1 页（约 12 篇）
+        interface MsnFeedResponse {
+            nextPageUrl?: string;
+            sections?: Array<{
+                cards?: Array<{
+                    id?: string;
+                    articleId?: string;
+                    url?: string;
+                    title?: string;
+                    body?: string;
+                    abstract?: string;
+                    publishedDateTime?: string;
+                    category?: string;
+                    providerName?: string;
+                    provider?: { name?: string };
+                    authors?: Array<{ name?: string }>;
+                }>;
+            }>;
+        }
+
+        const firstPageData = await ofetch<MsnFeedResponse>(firstApiUrl);
+        let rawCards = firstPageData.sections?.[0]?.cards ?? [];
+
+        // 2. 利用根节点返回的 nextPageUrl 请求第 2 页，合并至 20+ 篇
+        if (firstPageData.nextPageUrl) {
+            try {
+                const secondPageData = await ofetch<MsnFeedResponse>(firstPageData.nextPageUrl);
+                const secondCards = secondPageData.sections?.[0]?.cards ?? [];
+                rawCards = [...rawCards, ...secondCards];
+            } catch {
+                // 若第二页获取失败则保持第一页数据
+            }
+        }
 
         const items = await Promise.all(
-            targetCards.map(async (card) => {
+            rawCards.map(async (card) => {
                 let articleContentHtml = card.body || card.abstract || '';
 
-                // 优先从对象属性获取，失败时提取 URL 中的 ar-ID
                 let rawId = card.id || card.articleId;
                 if (!rawId && card.url) {
                     const matched = card.url.match(/ar-([A-Za-z0-9]+)/);
@@ -84,13 +126,12 @@ export const route: Route = {
                             );
                         }
                     } catch {
-                        // 网络或接口解析异常时退回默认 abstract
+                        // 异常时保留默认摘要
                     }
                 }
 
-                // 获取作者名，若无则使用渠道/提供商名称
                 const articleAuthor =
-                    card.authors?.map((a: { name?: string }) => a.name).filter(Boolean).join(', ') ||
+                    card.authors?.map((a) => a.name).filter(Boolean).join(', ') ||
                     card.provider?.name ||
                     card.providerName ||
                     name;
