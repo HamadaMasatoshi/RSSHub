@@ -33,6 +33,9 @@ export const route: Route = {
     maintainers: ['KTachibanaM'],
     handler: async (ctx) => {
         const { market, name, id } = ctx.req.param();
+        // 获取 URL 中的 limit 参数，未设置时默认抓取 20 篇
+        const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 20;
+
         let truncatedId = id;
         if (truncatedId.startsWith('sr-')) {
             truncatedId = truncatedId.slice(3);
@@ -45,10 +48,16 @@ export const route: Route = {
         const parsedSettings = JSON.parse(dataClientSettings);
         const requestMuid = parsedSettings.fd_muid;
 
-        const jsonData = await ofetch(`https://assets.msn.com/service/news/feed/pages/providerfullpage?market=${market}&query=newest&CommunityProfileId=${truncatedId}&apikey=${apiKey}&user=m-${requestMuid}`);
+        // 在 API URL 中加上 count 参数控制返回数量
+        const jsonData = await ofetch(
+            `https://assets.msn.com/service/news/feed/pages/providerfullpage?market=${market}&query=newest&CommunityProfileId=${truncatedId}&apikey=${apiKey}&user=m-${requestMuid}&count=${limit}&pageSize=${limit}`
+        );
+
+        const rawCards = jsonData.sections?.[0]?.cards ?? [];
+        const targetCards = rawCards.slice(0, limit);
 
         const items = await Promise.all(
-            (jsonData.sections?.[0]?.cards ?? []).map(async (card) => {
+            targetCards.map(async (card) => {
                 let articleContentHtml = card.body || card.abstract || '';
 
                 // 优先从对象属性获取，失败时提取 URL 中的 ar-ID
@@ -79,7 +88,7 @@ export const route: Route = {
                     }
                 }
 
-                // 优先获取 MSN 返回的具体作者名或提供商名称（如 AFP），若均无则使用频道名
+                // 获取作者名，若无则使用渠道/提供商名称
                 const articleAuthor =
                     card.authors?.map((a: { name?: string }) => a.name).filter(Boolean).join(', ') ||
                     card.provider?.name ||
