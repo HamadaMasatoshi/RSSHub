@@ -1,6 +1,6 @@
 import type { Route } from '@/types';
-import got from '@/utils/got';
-import { parseDate } from '@/utils/parse-date';
+import parser from '@/utils/rss-parser';
+import { load } from 'cheerio';
 
 export const route: Route = {
     path: '/latest',
@@ -17,34 +17,56 @@ export const route: Route = {
     },
     radar: [
         {
-            source: ['fuliba2023.net/'],
+            source: ['fuliba.net/'],
         },
     ],
     name: '最新',
     maintainers: ['shinemoon'],
     handler,
-    url: 'fuliba2023.net/',
+    url: 'fuliba.net/',
 };
 
 async function handler(ctx) {
-    const { data: response } = await got('https://fuliba2023.net/wp-json/wp/v2/posts', {
-        searchParams: {
-            per_page: ctx.req.query('limit') ?? 100,
-            _embed: 1,
-        },
+    const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit'), 10) : 30;
+
+    // 解析永久域名订阅源
+    const feed = await parser.parseURL('https://fuliba.net/feed');
+
+    const items = feed.items.slice(0, limit).map((item) => {
+        const rawContent = item['content:encoded'] || item.content || item.contentSnippet || '';
+
+        // 使用 cheerio 修复排版问题
+        const $ = load(rawContent, null, false);
+
+        // 剔除干扰阅读的行内样式及 Class 标签
+        $('*').removeAttr('style').removeAttr('class').removeAttr('id');
+
+        // 修复 WordPress 缩略图与延迟加载属性
+        $('img').each((_, img) => {
+            const $img = $(img);
+            const src = $img.attr('data-orig-file') || $img.attr('src');
+            if (src) {
+                $img.attr('src', src);
+            }
+            $img.removeAttr('srcset').removeAttr('sizes').removeAttr('loading');
+        });
+
+        // 压缩连续换行符
+        const cleanContent = $.html().replace(/(<br\s*\/?>\s*){2,}/gi, '<br>');
+
+        return {
+            title: item.title,
+            link: item.link,
+            guid: item.guid ?? item.link,
+            description: cleanContent,
+            pubDate: item.pubDate,
+            author: item.creator || item.author || '福利吧',
+        };
     });
-    const items = response.map((item) => ({
-        title: item.title.rendered,
-        link: item.link,
-        guid: item.guid.rendered,
-        description: item.content.rendered,
-        pubDate: parseDate(item.date_gmt),
-        author: item._embedded.author[0].name,
-    }));
 
     return {
-        title: '福利吧',
-        link: 'https://fuliba2023.net',
+        title: feed.title ?? '福利吧',
+        link: 'https://fuliba.net',
         item: items,
     };
 }
