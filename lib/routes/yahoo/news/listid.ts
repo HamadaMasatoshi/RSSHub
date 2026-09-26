@@ -46,19 +46,19 @@ async function handler(ctx) {
         throw new InvalidParameterError(`Unsupported region: ${region}`);
     }
 
-    const response = await getList(region, listId);
+    // 1. 获取 limit 参数，默认设为 20
+    const limit = ctx.req.query('limit') ? Number(ctx.req.query('limit')) : 20;
 
-    // console.log('Response:', response.stream_items);
-    // console.log('Type of response:', typeof response.stream_items);
-    // console.log('Is response an array?', Array.isArray(response.stream_items));
+    // 2. 将 limit 传入 getList
+    const response = await getList(region, listId, limit);
+
     const list = parseList(region, response.stream_items);
 
     const items = await Promise.all(list.map((item) => parseItem(item)));
 
-    const author = items[0].author;
-    const atIndex = author?.indexOf('@'); // fing '@'
+    const author = items[0]?.author;
+    const atIndex = author?.indexOf('@');
     const source = atIndex === -1 ? author : author?.slice(atIndex + 1).trim();
-    // console.log(source);
 
     return {
         title: `Yahoo 新聞 - ${source ?? ''}`,

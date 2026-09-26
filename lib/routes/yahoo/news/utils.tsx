@@ -65,8 +65,8 @@ const getArchive = async (region, limit, tags?: string[], providerId?) => {
     return response.data.stream.contents;
 };
 
-const getList = async (region, listId) => {
-    const { data: response } = await got(`https://${region}.news.yahoo.com/_td-news/api/resource/StreamService;category=LISTID%3A${listId};useNCP=true`);
+const getList = async (region, listId, limit = 20) => {
+    const { data: response } = await got(`https://${region}.news.yahoo.com/_td-news/api/resource/StreamService;category=LISTID%3A${listId};count=${limit};useNCP=true`);
     return response;
 };
 
