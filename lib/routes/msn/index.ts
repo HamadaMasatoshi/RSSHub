@@ -7,6 +7,43 @@ import { parseDate } from '@/utils/parse-date';
 const apiKey = '0QfOX3Vn51YCzitbLaRkTTBadtWpgTN8NZLW0C1SEM';
 const fetchedArticleContentHtmlImgRegex = /<img data-reference="image" data-document-id="cms\/api\/amp\/image\/([A-Za-z0-9]+)"[^>]*>/g;
 
+// 将文章链接清洗为无中文 Slug、无追踪参数的精简短链接
+const formatCleanShortUrl = (rawUrl?: string, market: string = 'zh-hk', rawId?: string): string => {
+    let cleanId = rawId ? rawId.replace(/^ar-/, '') : '';
+
+    if (rawUrl) {
+        try {
+            const urlObj = new URL(rawUrl);
+            urlObj.search = ''; // 去除 ?ocid=... 等追踪参数
+            const cleanPath = urlObj.pathname;
+
+            // 匹配 /ar-xxxx 并提取前面的路径片段
+            const arMatch = cleanPath.match(/(.*\/)(ar-[A-Za-z0-9]+)$/);
+            if (arMatch) {
+                const basePath = arMatch[1]; // 例如 /zh-hk/news/other/中文标题slug/
+                const arId = arMatch[2];     // 例如 ar-AA2cZKsk
+
+                const segments = basePath.split('/').filter(Boolean); // ['zh-hk', 'news', 'other', '中文标题slug']
+                
+                // 如果路径包含 4 个或更多片段（说明末尾带有文章中文标题 slug），则剔除最后一个 slug 片段
+                if (segments.length >= 4) {
+                    segments.pop();
+                }
+                return `https://${urlObj.host}/${segments.join('/')}/${arId}`;
+            }
+        } catch {
+            // 忽略解析错误，降级处理
+        }
+    }
+
+    // 兜底逻辑：若原 URL 解析异常，直接用 ID 组装纯净短链接
+    if (cleanId) {
+        return `https://www.msn.com/${market}/news/other/ar-${cleanId}`;
+    }
+
+    return rawUrl?.split('?')[0] ?? '';
+};
+
 export const route: Route = {
     path: '/:market/:name/:id',
     parameters: {
@@ -65,7 +102,6 @@ export const route: Route = {
             firstApiUrl += `&user=m-${requestMuid}`;
         }
 
-        // 1. 请求第 1 页（约 12 篇）
         interface MsnFeedResponse {
             nextPageUrl?: string;
             sections?: Array<{
@@ -85,17 +121,18 @@ export const route: Route = {
             }>;
         }
 
+        // 1. 请求第 1 页
         const firstPageData = await ofetch<MsnFeedResponse>(firstApiUrl);
         let rawCards = firstPageData.sections?.[0]?.cards ?? [];
 
-        // 2. 利用根节点返回的 nextPageUrl 请求第 2 页，合并至 20+ 篇
+        // 2. 利用 nextPageUrl 追加第 2 页，合并至 20+ 篇
         if (firstPageData.nextPageUrl) {
             try {
                 const secondPageData = await ofetch<MsnFeedResponse>(firstPageData.nextPageUrl);
                 const secondCards = secondPageData.sections?.[0]?.cards ?? [];
                 rawCards = [...rawCards, ...secondCards];
             } catch {
-                // 若第二页获取失败则保持第一页数据
+                // 网络异常降级保留第 1 页
             }
         }
 
@@ -136,9 +173,12 @@ export const route: Route = {
                     card.providerName ||
                     name;
 
+                // 生成精简短链接（无中文、无追踪参数）
+                const cleanShortLink = formatCleanShortUrl(card.url, market, rawId);
+
                 return {
                     title: card.title,
-                    link: card.url,
+                    link: cleanShortLink,
                     description: articleContentHtml,
                     author: articleAuthor,
                     pubDate: parseDate(card.publishedDateTime),
