@@ -7,41 +7,18 @@ import { parseDate } from '@/utils/parse-date';
 const apiKey = '0QfOX3Vn51YCzitbLaRkTTBadtWpgTN8NZLW0C1SEM';
 const fetchedArticleContentHtmlImgRegex = /<img data-reference="image" data-document-id="cms\/api\/amp\/image\/([A-Za-z0-9]+)"[^>]*>/g;
 
-// 将文章链接清洗为无中文 Slug、无追踪参数的精简短链接
-const formatCleanShortUrl = (rawUrl?: string, market: string = 'zh-hk', rawId?: string): string => {
-    let cleanId = rawId ? rawId.replace(/^ar-/, '') : '';
-
-    if (rawUrl) {
-        try {
-            const urlObj = new URL(rawUrl);
-            urlObj.search = ''; // 去除 ?ocid=... 等追踪参数
-            const cleanPath = urlObj.pathname;
-
-            // 匹配 /ar-xxxx 并提取前面的路径片段
-            const arMatch = cleanPath.match(/(.*\/)(ar-[A-Za-z0-9]+)$/);
-            if (arMatch) {
-                const basePath = arMatch[1];
-                const arId = arMatch[2];
-
-                const segments = basePath.split('/').filter(Boolean);
-                
-                // 如果路径包含 4 个或更多片段（说明末尾带有文章中文标题 slug），则剔除最后一个 slug 片段
-                if (segments.length >= 4) {
-                    segments.pop();
-                }
-                return `https://${urlObj.host}/${segments.join('/')}/${arId}`;
-            }
-        } catch {
-            // 忽略解析错误，降级处理
-        }
+// 清理 URL 追踪参数 (保留完整路径，确保 Telegram / 微信等平台能正常生成网页预览卡片)
+const cleanUrl = (rawUrl?: string): string => {
+    if (!rawUrl) {
+        return '';
     }
-
-    // 兜底逻辑：若原 URL 解析异常，直接用 ID 组装纯净短链接
-    if (cleanId) {
-        return `https://www.msn.com/${market}/news/other/ar-${cleanId}`;
+    try {
+        const urlObj = new URL(rawUrl);
+        urlObj.search = ''; // 移除 ?ocid=... 等全部追踪参数
+        return urlObj.toString();
+    } catch {
+        return rawUrl.split('?')[0];
     }
-
-    return rawUrl?.split('?')[0] ?? '';
 };
 
 export const route: Route = {
@@ -123,7 +100,7 @@ export const route: Route = {
             }>;
         }
 
-        // 循环拉取，最高拉取 3 页（约 36 篇）
+        // 循环拉取 3 页（约 36 篇），覆盖高频更新
         const maxPages = 3;
         let currentApiUrl: string | undefined = firstApiUrl;
         let pageCount = 0;
@@ -178,12 +155,9 @@ export const route: Route = {
                     card.providerName ||
                     name;
 
-                // 生成精简短链接（无中文、无追踪参数）
-                const cleanShortLink = formatCleanShortUrl(card.url, market, rawId);
-
                 return {
                     title: card.title,
-                    link: cleanShortLink,
+                    link: cleanUrl(card.url),
                     description: articleContentHtml,
                     author: articleAuthor,
                     pubDate: parseDate(card.publishedDateTime),
