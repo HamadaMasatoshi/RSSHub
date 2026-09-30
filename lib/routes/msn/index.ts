@@ -20,10 +20,10 @@ const formatCleanShortUrl = (rawUrl?: string, market: string = 'zh-hk', rawId?: 
             // 匹配 /ar-xxxx 并提取前面的路径片段
             const arMatch = cleanPath.match(/(.*\/)(ar-[A-Za-z0-9]+)$/);
             if (arMatch) {
-                const basePath = arMatch[1]; // 例如 /zh-hk/news/other/中文标题slug/
-                const arId = arMatch[2];     // 例如 ar-AA2cZKsk
+                const basePath = arMatch[1];
+                const arId = arMatch[2];
 
-                const segments = basePath.split('/').filter(Boolean); // ['zh-hk', 'news', 'other', '中文标题slug']
+                const segments = basePath.split('/').filter(Boolean);
                 
                 // 如果路径包含 4 个或更多片段（说明末尾带有文章中文标题 slug），则剔除最后一个 slug 片段
                 if (segments.length >= 4) {
@@ -102,37 +102,42 @@ export const route: Route = {
             firstApiUrl += `&user=m-${requestMuid}`;
         }
 
+        interface MsnFeedCard {
+            id?: string;
+            articleId?: string;
+            url?: string;
+            title?: string;
+            body?: string;
+            abstract?: string;
+            publishedDateTime?: string;
+            category?: string;
+            providerName?: string;
+            provider?: { name?: string };
+            authors?: Array<{ name?: string }>;
+        }
+
         interface MsnFeedResponse {
             nextPageUrl?: string;
             sections?: Array<{
-                cards?: Array<{
-                    id?: string;
-                    articleId?: string;
-                    url?: string;
-                    title?: string;
-                    body?: string;
-                    abstract?: string;
-                    publishedDateTime?: string;
-                    category?: string;
-                    providerName?: string;
-                    provider?: { name?: string };
-                    authors?: Array<{ name?: string }>;
-                }>;
+                cards?: MsnFeedCard[];
             }>;
         }
 
-        // 1. 请求第 1 页
-        const firstPageData = await ofetch<MsnFeedResponse>(firstApiUrl);
-        let rawCards = firstPageData.sections?.[0]?.cards ?? [];
+        // 循环拉取，最高拉取 3 页（约 36 篇）
+        const maxPages = 3;
+        let currentApiUrl: string | undefined = firstApiUrl;
+        let pageCount = 0;
+        let rawCards: MsnFeedCard[] = [];
 
-        // 2. 利用 nextPageUrl 追加第 2 页，合并至 20+ 篇
-        if (firstPageData.nextPageUrl) {
+        while (currentApiUrl && pageCount < maxPages) {
             try {
-                const secondPageData = await ofetch<MsnFeedResponse>(firstPageData.nextPageUrl);
-                const secondCards = secondPageData.sections?.[0]?.cards ?? [];
-                rawCards = [...rawCards, ...secondCards];
+                const pageResponse = await ofetch<MsnFeedResponse>(currentApiUrl);
+                const cards = pageResponse.sections?.[0]?.cards ?? [];
+                rawCards = [...rawCards, ...cards];
+                currentApiUrl = pageResponse.nextPageUrl;
+                pageCount++;
             } catch {
-                // 网络异常降级保留第 1 页
+                break; // 遇到网络波动等异常时跳出，保留已获取到的文章
             }
         }
 
