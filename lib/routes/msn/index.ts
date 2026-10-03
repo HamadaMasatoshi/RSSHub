@@ -100,8 +100,8 @@ export const route: Route = {
             }>;
         }
 
-        // 循环拉取 3 页（约 36 篇），覆盖高频更新
-        const maxPages = 3;
+        // 循环拉取 5 页（约 60 篇），覆盖高频更新
+        const maxPages = 5;
         let currentApiUrl: string | undefined = firstApiUrl;
         let pageCount = 0;
         let rawCards: MsnFeedCard[] = [];
