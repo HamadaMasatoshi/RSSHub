@@ -67,8 +67,8 @@ async function handler(ctx) {
     let path = getSubPath(ctx);
 
     if (/^\/cn\/(?:cn|zh)/.test(path)) {
-        language = path.match(/^\/cn\/(cn|zh)/)[1];
-        path = path.match(new RegExp(String.raw`\/cn\/` + language + '(.*)'))[1];
+        language = path.match(/^\/cn\/(cn|zh)/)![1];
+        path = path.match(new RegExp(String.raw`\/cn\/` + language + '(.*)'))![1];
     } else {
         language = 'cn';
     }
@@ -79,8 +79,10 @@ async function handler(ctx) {
     const isOfficialRSS = path === '/rss';
     const currentUrl = `${rootUrl}${path}${isOfficialRSS ? '.html' : ''}`;
 
-    let officialFeed;
+    // 直接读取 Koyeb 面板设置的环境变量，改动完全局限在此文件内
+    const nikkeiCookie = process.env.NIKKEI_COOKIE || '';
 
+    let officialFeed;
     let items: DataItem[];
     let $;
 
@@ -94,6 +96,9 @@ async function handler(ctx) {
         const response = await got({
             method: 'get',
             url: currentUrl,
+            headers: {
+                ...(nikkeiCookie ? { Cookie: nikkeiCookie } : {}),
+            },
         });
 
         $ = load(response.data);
@@ -102,7 +107,7 @@ async function handler(ctx) {
         items = $('dt a')
             .toArray()
             .map((item) => {
-                const $item = $(item);
+                const $item =$(item);
 
                 return {
                     title: $item.text(),
@@ -125,15 +130,23 @@ async function handler(ctx) {
                 const detailResponse = await got({
                     method: 'get',
                     url: `${item.link}?print=1`,
+                    headers: {
+                        ...(nikkeiCookie ? { Cookie: nikkeiCookie } : {}),
+                    },
                 });
 
                 const content = load(detailResponse.data);
 
                 const divs = content('#contentDiv div');
-                divs.first().remove();
-                divs.last().remove();
+                if (divs.length > 0) {
+                    divs.first().remove();
+                    divs.last().remove();
+                }
 
-                item.pubDate = timezone(parseDate(item.link!.match(/\/\d+-(.*?)\.html/)![1], 'YYYY-MM-DD-HH-mm-ss'), 9);
+                const dateMatch = item.link!.match(/\/\d+-(.*?)\.html/);
+                if (dateMatch) {
+                    item.pubDate = timezone(parseDate(dateMatch[1], 'YYYY-MM-DD-HH-mm-ss'), 9);
+                }
 
                 item.author = content('meta[name="author"]').attr('content');
                 item.title ??= content('meta[name="twitter:title"]').attr('content')!;
