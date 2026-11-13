@@ -226,6 +226,11 @@ const parseItem = (item) =>
             }
         }
 
+        // 过滤掉无头图文章回退到的 Yahoo 默认 Logo 占位图
+        if (heroImgSrc?.includes('yahoo_default_logo')) {
+            heroImgSrc = undefined;
+        }
+
         // 提取图片说明并拼接到正文开头
         const heroCaption = leadFigure.find('figcaption').text().replace(/\s+/g, ' ').trim();
         const heroHtml =
