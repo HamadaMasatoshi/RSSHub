@@ -14,18 +14,16 @@ export const parseSourceDate = (value?: string | number) => {
     const date = parseDate(sourceValue);
     return Number.isNaN(date.getTime()) ? undefined : date;
 };
+
 const defaultRssItem = (item) => ({
     title: item.name,
     link: item.link || `https://m.thepaper.cn/${item.cornerLabelDesc === '短剧' ? 'series/' : 'newsDetail_forward_'}${item.contId}`,
     pubDate: parseSourceDate(item.pubTimeLong) ?? parseSourceDate(item.publishTime),
     author: item.author || item.authorInfo?.sname || item.trackAuthor || undefined,
     category: [...(item.tagList?.map((tag) => tag.tag) ?? []), ...(item.nodeInfo?.name ? [item.nodeInfo.name] : [])],
-    media: {
-        content: {
-            url: item.pic,
-        },
-    },
+    // 自定义修改：移除默认封面 media 输出
 });
+
 async function processItem(item, ctx) {
     const useOldMode = ctx.req.query('old') === 'yes';
     if (item.link) {
@@ -70,23 +68,14 @@ async function processItem(item, ctx) {
         category: [...(contentDetail.tagList?.map((t) => t.tag) ?? []), ...(contentDetail.nodeInfo?.name ? [contentDetail.nodeInfo.name] : [])],
         pubDate,
         author: contentDetail.author || item.author || item.authorInfo?.sname || item.trackAuthor || undefined,
-        media: {
-            content: {
-                url: item.pic || contentDetail.videos?.coverUrl || contentDetail.bigPic,
-            },
-            thumbnails: {
-                url: item.sharePic || contentDetail.sharePic,
-            },
-        },
+        // 自定义修改：移除 media 封面图与缩略图输出
     };
-    const voiceInfo = contentDetail.voiceInfo;
-    if ([true, 1, '1'].includes(voiceInfo?.isHaveVoice) && /^https?:\/\/\S+\.mp3(?:[?#]|$)/i.test(voiceInfo?.voiceSrc ?? '')) {
-        rssItem.enclosure_type = 'audio/mpeg';
-        rssItem.enclosure_url = voiceInfo.voiceSrc;
-        rssItem.itunes_item_image = item.pic || contentDetail.videos?.coverUrl;
-    }
+
+    // 自定义修改：移除 voiceInfo 语音朗读音频附件 (enclosure) 输出
+
     return rssItem;
 }
+
 export default {
     ProcessItem: processItem,
     ChannelIdToName: (nodeId, nextData) => nextData.props.appProps.menu.channelList.find((c) => c.nodeId.toString() === nodeId.toString()).name,
@@ -96,6 +85,7 @@ export default {
         return source ? new URL(source, 'https://m.thepaper.cn').href : undefined;
     },
 };
+
 const ThepaperVideoDetail = ({
     videos,
 }: {
@@ -118,6 +108,7 @@ const ThepaperVideoDetail = ({
         poster={videos.coverUrl}
     ></video>
 );
+
 const ThepaperImageDetail = ({
     images,
 }: {
