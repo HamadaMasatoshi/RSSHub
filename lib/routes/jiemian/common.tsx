@@ -81,6 +81,9 @@ export const fetchArticle = async (item) => {
         const video = content('#video-player').first();
         content('p.report-view').remove();
 
+        // 自定义修改：明确移除导语段落
+        content('div.article-header p').remove();
+
         const title = content('div.article-header h1').eq(0).text();
         const description = renderDescription({
             image: image
@@ -97,7 +100,6 @@ export const fetchArticle = async (item) => {
                       height: video.prop('height'),
                   }
                 : undefined,
-            intro: content('div.article-header p').text(),
             description: content('div.article-content').html() ?? undefined,
         });
         const author = content('span.author')
@@ -141,7 +143,6 @@ export const feedMeta = ($: CheerioAPI, currentUrl: string) => {
 
 export const renderDescription = ({
     image,
-    intro,
     video,
     description,
 }: {
@@ -160,7 +161,6 @@ export const renderDescription = ({
                     <img src={image.src} alt={imageAlt} />
                 </figure>
             ) : null}
-            {intro ? <p>{intro}</p> : null}
             {video?.src ? (
                 <video poster={videoPoster} controls>
                     <source src={video.src} type={video.type} />
