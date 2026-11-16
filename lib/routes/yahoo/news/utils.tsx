@@ -1,4 +1,5 @@
 import { load } from 'cheerio';
+import { renderToString } from 'hono/jsx/dom/server';
 
 import { config } from '@/config';
 import { renderYoutube } from '@/routes/youtube/utils';
@@ -37,6 +38,7 @@ const regionConfig = {
         },
     },
 };
+
 const getArchive = async (region, limit, tags?: string[], providerId?) => {
     const { spaceId, lang } = regionConfig[region];
     const params = new URLSearchParams({
@@ -62,10 +64,12 @@ const getArchive = async (region, limit, tags?: string[], providerId?) => {
     const { data: response } = await got(`https://tw-gw-news.media.yahoo.com/api/v1/gql/saved_query?${params.toString()}`);
     return response.data.stream.contents;
 };
+
 const getList = async (region, listId) => {
     const { data: response } = await got(`https://${region}.news.yahoo.com/_td-news/api/resource/StreamService;category=LISTID%3A${listId};useNCP=true`);
     return response;
 };
+
 const getProviderList = async (region) => {
     const stores = await getStores(region);
     return stores.providerList.map((provider) => ({
@@ -74,6 +78,7 @@ const getProviderList = async (region) => {
         link: new URL(`${provider.key}--所有類別/archive`, `https://${region}.news.yahoo.com`).href,
     }));
 };
+
 const findStoresObject = (node) => {
     if (!(node instanceof Object)) {
         return null;
@@ -90,6 +95,7 @@ const findStoresObject = (node) => {
     }
     return null;
 };
+
 const getStores = (region) =>
     cache.tryGet(`yahoo:${region}:stores`, async () => {
         const { data: response } = await got(`https://${region}.news.yahoo.com/archive`);
@@ -103,6 +109,7 @@ const getStores = (region) =>
         }
         return stores;
     });
+
 const parseList = (region, response) =>
     response.map((item) => ({
         title: item.title,
@@ -111,6 +118,7 @@ const parseList = (region, response) =>
         pubDate: item.published_at ? parseDate(item.published_at, 'X') : item.pubDate ? parseDate(item.pubDate) : undefined,
         author: item.provider_name ?? item.provider?.displayName ?? item.publisher,
     }));
+
 function getYoutubeVideoId(value: string | undefined) {
     if (!value || !URL.canParse(value)) {
         return;
@@ -128,7 +136,8 @@ function getYoutubeVideoId(value: string | undefined) {
           : undefined;
     return videoId && /^[\w-]{11}$/.test(videoId) ? videoId : undefined;
 }
-async function fetchItem(link: string) {
+
+async function fetchItem(link: string, title?: string) {
     const { data: response } = await got(link, {
         headers: {
             'User-Agent': config.trueUA,
@@ -172,20 +181,64 @@ async function fetchItem(link: string) {
         }
         $ele.replaceWith(renderYoutube(true, videoId));
     });
+
+    const descriptionHtml = body
+        .toArray()
+        .map((ele) => $(ele).html())
+        .join('');
+
+    // 提取新版头图容器（.cover-wrap 或 figure[data-testid="article-figure-image"]）
+    const leadFigure = $('.cover-wrap figure, figure[data-testid="article-figure-image"].cover').first();
+    let heroImgSrc =
+        leadFigure.find('img').attr('src') ||
+        leadFigure.find('img').attr('data-src') ||
+        (Array.isArray(ldJson.image) ? ldJson.image[0]?.url || ldJson.image[0] : ldJson.image?.url || ldJson.image) ||
+        $('meta[property="og:image"]').attr('content');
+
+    // 清理 Yahoo CDN 代理链接（兼容新版 mysterio URL 编码路径与旧版 --/ 路径）
+    if (heroImgSrc) {
+        if (heroImgSrc.includes('/https%3A%2F%2F') || heroImgSrc.includes('/http%3A%2F%2F')) {
+            const encodedUrl = heroImgSrc.match(/\/(https?%3A%2F%2F.*)/)?.[1];
+            if (encodedUrl) {
+                heroImgSrc = decodeURIComponent(encodedUrl);
+            }
+        } else {
+            const match = heroImgSrc.match(/.*--\/.*--\/(.*)/);
+            if (match?.[1]) {
+                heroImgSrc = match[1];
+            }
+        }
+    }
+
+    // 过滤掉无头图文章回退到的 Yahoo 默认 Logo 占位图
+    if (heroImgSrc?.includes('yahoo_default_logo')) {
+        heroImgSrc = undefined;
+    }
+
+    // 提取图片说明并拼接到正文开头
+    const heroCaption = leadFigure.find('figcaption').text().replace(/\s+/g, ' ').trim();
+    const heroHtml =
+        heroImgSrc && !descriptionHtml.includes(heroImgSrc)
+            ? renderToString(
+                  <figure>
+                      <img src={heroImgSrc} alt={title} />
+                      {heroCaption && <figcaption>{heroCaption}</figcaption>}
+                  </figure>
+              )
+            : '';
+
     return {
-        description: body
-            .toArray()
-            .map((ele) => $(ele).html())
-            .join(''),
+        description: heroHtml + descriptionHtml,
         author,
-        image: ldJson.image?.url,
+        image: heroImgSrc,
         category: ldJson.articleSection ? [ldJson.articleSection, ...(ldJson.keywords ?? [])] : ldJson.keywords,
         pubDate: ldJson.datePublished ? parseDate(ldJson.datePublished) : undefined,
         updated: ldJson.dateModified ? parseDate(ldJson.dateModified) : undefined,
     };
 }
+
 const parseItem = async (item) => {
-    const details = await cache.tryGet(`yahoo:news:article:v5:${item.link}`, () => fetchItem(item.link));
+    const details = await cache.tryGet(`yahoo:news:article:v5:${item.link}`, () => fetchItem(item.link, item.title));
     return {
         ...item,
         description: details.description,
@@ -196,4 +249,5 @@ const parseItem = async (item) => {
         updated: details.updated ?? item.updated,
     };
 };
+
 export { getArchive, getList, getProviderList, parseItem, parseList, regionConfig };
