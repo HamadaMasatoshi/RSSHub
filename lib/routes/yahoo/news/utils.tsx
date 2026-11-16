@@ -175,6 +175,13 @@ const parseItem = (item) =>
             $ele.attr('src', dataSrc);
             $ele.removeAttr('data-src');
         });
+
+        // 统一为正文里所有图片的 figcaption 加上内联样式，以兼容 Feedly
+        body.find('figcaption').each((_, ele) => {
+            const $ele = $(ele);
+            $ele.attr('style', 'font-size: 0.85em; color: #666666; margin-top: 0.5em; line-height: 1.4;');
+        });
+
         // fix blockquote iframe
         body.find('.caas-iframe').each((_, ele) => {
             const $ele = $(ele);
@@ -231,16 +238,20 @@ const parseItem = (item) =>
             heroImgSrc = undefined;
         }
 
-        // 提取图片说明并拼接到正文开头
+        // 提取图片说明并拼接到正文开头（带有内联样式以兼容 Feedly）
         const heroCaption = leadFigure.find('figcaption').text().replace(/\s+/g, ' ').trim();
         const heroHtml =
             heroImgSrc && !descriptionHtml.includes(heroImgSrc)
                 ? renderToString(
-                      <figure>
-                          <img src={heroImgSrc} alt={item.title} />
-                          {heroCaption && <figcaption>{heroCaption}</figcaption>}
-                      </figure>
-                  )
+                        <figure style="margin: 1.5em 0; text-align: center;">
+                            <img src={heroImgSrc} alt={item.title} style="max-width: 100%; height: auto;" />
+                            {heroCaption && (
+                                <figcaption style="font-size: 0.85em; color: #666666; margin-top: 0.5em; line-height: 1.4;">
+                                    {heroCaption}
+                                </figcaption>
+                            )}
+                        </figure>
+                    )
                 : '';
 
         item.description = heroHtml + descriptionHtml;
