@@ -159,15 +159,15 @@ async function fetchItem(link: string, title?: string) {
     body.find('img').each((_, ele) => {
         const $ele = $(ele);
         let dataSrc = $ele.attr('data-src');
-        if (!dataSrc) {
-            return;
+        if (dataSrc) {
+            const match = dataSrc.match(/.*--\/.*--\/(.*)/);
+            if (match?.[1]) {
+                dataSrc = match?.[1];
+            }
+            $ele.attr('src', dataSrc);
+            $ele.removeAttr('data-src');
         }
-        const match = dataSrc.match(/.*--\/.*--\/(.*)/);
-        if (match?.[1]) {
-            dataSrc = match?.[1];
-        }
-        $ele.attr('src', dataSrc);
-        $ele.removeAttr('data-src');
+        $ele.attr('referrerpolicy', 'no-referrer');
     });
     // fix blockquote iframe
     body.find('.caas-iframe').each((_, ele) => {
@@ -221,7 +221,7 @@ async function fetchItem(link: string, title?: string) {
         heroImgSrc && !descriptionHtml.includes(heroImgSrc)
             ? renderToString(
                   <figure>
-                      <img src={heroImgSrc} alt={title} />
+                      <img src={heroImgSrc} alt={title} referrerpolicy="no-referrer" />
                       {heroCaption && <figcaption>{heroCaption}</figcaption>}
                   </figure>
               )
@@ -230,7 +230,6 @@ async function fetchItem(link: string, title?: string) {
     return {
         description: heroHtml + descriptionHtml,
         author,
-        image: heroImgSrc,
         category: ldJson.articleSection ? [ldJson.articleSection, ...(ldJson.keywords ?? [])] : ldJson.keywords,
         pubDate: ldJson.datePublished ? parseDate(ldJson.datePublished) : undefined,
         updated: ldJson.dateModified ? parseDate(ldJson.dateModified) : undefined,
@@ -238,12 +237,11 @@ async function fetchItem(link: string, title?: string) {
 }
 
 const parseItem = async (item) => {
-    const details = await cache.tryGet(`yahoo:news:article:v5:${item.link}`, () => fetchItem(item.link, item.title));
+    const details = await cache.tryGet(`yahoo:news:article:v6:${item.link}`, () => fetchItem(item.link, item.title));
     return {
         ...item,
         description: details.description,
         author: details.author ?? item.author,
-        image: details.image,
         category: details.category,
         pubDate: details.pubDate ?? item.pubDate,
         updated: details.updated ?? item.updated,
